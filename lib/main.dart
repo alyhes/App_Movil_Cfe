@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'screens/inicio_screen.dart';
+import 'screens/login_screen.dart';
 
 void main() {
   runApp(const InspeccionesCFEApp());
@@ -65,7 +65,7 @@ class InspeccionesCFEApp extends StatelessWidget {
         ),
       ),
 
-      home: const InicioScreen(),
+      home: const LoginScreen(),
     );
   }
 }

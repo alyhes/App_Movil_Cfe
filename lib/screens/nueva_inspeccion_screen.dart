@@ -172,40 +172,82 @@ class _NuevaInspeccionScreenState
     }
   }
 
+  // ============================================================
+  // CERRAR SESIÓN
+  // ============================================================
+
+  void cerrarSesion() {
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/login',
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         backgroundColor: const Color(0xFF007A4D),
         foregroundColor: Colors.white,
+
         title: const Text(
           'Nueva Inspección',
           style: TextStyle(
             fontWeight: FontWeight.bold,
           ),
         ),
+
         actions: [
+          // BOTÓN CERRAR SESIÓN
+          TextButton.icon(
+            onPressed: cerrarSesion,
+            icon: const Icon(
+              Icons.logout,
+              color: Colors.white,
+            ),
+            label: const Text(
+              'Cerrar sesión',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+
+          // BOTÓN GUARDAR
           IconButton(
             tooltip: 'Guardar',
             onPressed: guardarInspeccion,
-            icon: const Icon(Icons.save),
+            icon: const Icon(
+              Icons.save,
+            ),
           ),
         ],
       ),
+
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
+
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(
               maxWidth: 1100,
             ),
+
             child: Column(
               crossAxisAlignment:
                   CrossAxisAlignment.stretch,
+
               children: [
+                // ============================================================
+                // ENCABEZADO CFE
+                // ============================================================
+
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(20),
+
                     child: Column(
                       children: [
                         const Text(
@@ -216,7 +258,9 @@ class _NuevaInspeccionScreenState
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+
                         const SizedBox(height: 5),
+
                         const Text(
                           'DIRECCIÓN DE OPERACIÓN',
                           textAlign: TextAlign.center,
@@ -225,7 +269,9 @@ class _NuevaInspeccionScreenState
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+
                         const SizedBox(height: 5),
+
                         const Text(
                           'GERENCIA REGIONAL DE TRANSMISIÓN PENINSULAR',
                           textAlign: TextAlign.center,
@@ -234,7 +280,9 @@ class _NuevaInspeccionScreenState
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+
                         const SizedBox(height: 8),
+
                         const Text(
                           'INSPECCIÓN DE LÍNEAS DE TRANSMISIÓN',
                           textAlign: TextAlign.center,
@@ -244,13 +292,18 @@ class _NuevaInspeccionScreenState
                             color: Color(0xFF007A4D),
                           ),
                         ),
+
                         const SizedBox(height: 20),
+
                         const Divider(),
+
                         const SizedBox(height: 15),
+
                         Wrap(
                           spacing: 40,
                           runSpacing: 10,
                           alignment: WrapAlignment.center,
+
                           children: const [
                             Text(
                               'HOJA: 1 DE 1',
@@ -258,18 +311,21 @@ class _NuevaInspeccionScreenState
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+
                             Text(
                               'CLAVE: P-T150-LT01-R-05',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+
                             Text(
                               'REVISIÓN: 1',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+
                             Text(
                               'FECHA DE ELABORACIÓN: 29.01.2021',
                               style: TextStyle(
@@ -285,15 +341,22 @@ class _NuevaInspeccionScreenState
 
                 const SizedBox(height: 16),
 
+                // ============================================================
+                // TÍTULO
+                // ============================================================
+
                 Container(
                   padding: const EdgeInsets.all(15),
+
                   decoration: BoxDecoration(
                     color: const Color(0xFF007A4D),
                     borderRadius: BorderRadius.circular(8),
                   ),
+
                   child: const Text(
                     'TRABAJOS PENDIENTES EN LA LÍNEA DE TRANSMISIÓN',
                     textAlign: TextAlign.center,
+
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 17,
@@ -304,15 +367,22 @@ class _NuevaInspeccionScreenState
 
                 const SizedBox(height: 16),
 
+                // ============================================================
+                // DATOS GENERALES
+                // ============================================================
+
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(20),
+
                     child: Column(
                       crossAxisAlignment:
                           CrossAxisAlignment.start,
+
                       children: [
                         const Text(
                           'DATOS GENERALES',
+
                           style: TextStyle(
                             color: Color(0xFF007A4D),
                             fontSize: 18,
@@ -324,6 +394,7 @@ class _NuevaInspeccionScreenState
 
                         const Text(
                           'LÍNEA DE TRANSMISIÓN *',
+
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                           ),
@@ -333,9 +404,11 @@ class _NuevaInspeccionScreenState
 
                         TextField(
                           controller: lineaController,
+
                           decoration: const InputDecoration(
                             hintText:
                                 'Ingrese la línea de transmisión',
+
                             prefixIcon: Icon(
                               Icons.electrical_services,
                             ),
@@ -346,6 +419,7 @@ class _NuevaInspeccionScreenState
 
                         const Text(
                           'FECHA *',
+
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                           ),
@@ -355,6 +429,7 @@ class _NuevaInspeccionScreenState
 
                         InkWell(
                           onTap: seleccionarFecha,
+
                           child: InputDecorator(
                             decoration:
                                 const InputDecoration(
@@ -362,6 +437,7 @@ class _NuevaInspeccionScreenState
                                 Icons.calendar_month,
                               ),
                             ),
+
                             child: Text(
                               formatoFecha(
                                 fechaSeleccionada,
@@ -374,6 +450,7 @@ class _NuevaInspeccionScreenState
 
                         const Text(
                           'TIPO DE INSPECCIÓN *',
+
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                           ),
@@ -383,15 +460,18 @@ class _NuevaInspeccionScreenState
 
                         DropdownButtonFormField<String>(
                           initialValue: tipoInspeccion,
+
                           decoration:
                               const InputDecoration(
                             prefixIcon: Icon(
                               Icons.fact_check,
                             ),
                           ),
+
                           hint: const Text(
                             'Seleccione el tipo de inspección',
                           ),
+
                           items: const [
                             DropdownMenuItem(
                               value: 'Inspección normal',
@@ -399,12 +479,14 @@ class _NuevaInspeccionScreenState
                                 'Inspección normal',
                               ),
                             ),
+
                             DropdownMenuItem(
                               value: 'Inspección especial',
                               child: Text(
                                 'Inspección especial',
                               ),
                             ),
+
                             DropdownMenuItem(
                               value:
                                   'Inspección de seguimiento',
@@ -412,6 +494,7 @@ class _NuevaInspeccionScreenState
                                 'Inspección de seguimiento',
                               ),
                             ),
+
                             DropdownMenuItem(
                               value:
                                   'Inspección por anomalía',
@@ -420,6 +503,7 @@ class _NuevaInspeccionScreenState
                               ),
                             ),
                           ],
+
                           onChanged: (valor) {
                             setState(() {
                               tipoInspeccion = valor;
@@ -431,6 +515,7 @@ class _NuevaInspeccionScreenState
 
                         const Text(
                           'ZONA DE TRANSMISIÓN *',
+
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                           ),
@@ -440,9 +525,11 @@ class _NuevaInspeccionScreenState
 
                         TextField(
                           controller: zonaController,
+
                           decoration: const InputDecoration(
                             hintText:
                                 'Ingrese la zona de transmisión',
+
                             prefixIcon: Icon(
                               Icons.location_on,
                             ),
@@ -455,15 +542,22 @@ class _NuevaInspeccionScreenState
 
                 const SizedBox(height: 16),
 
+                // ============================================================
+                // TRABAJOS PENDIENTES
+                // ============================================================
+
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
+
                     child: Column(
                       crossAxisAlignment:
                           CrossAxisAlignment.start,
+
                       children: [
                         const Text(
                           'TRABAJOS PENDIENTES',
+
                           style: TextStyle(
                             color: Color(0xFF007A4D),
                             fontSize: 18,
@@ -476,63 +570,82 @@ class _NuevaInspeccionScreenState
                         SingleChildScrollView(
                           scrollDirection:
                               Axis.horizontal,
+
                           child: DataTable(
                             headingRowColor:
                                 WidgetStateProperty.all(
                               const Color(0xFF007A4D),
                             ),
+
                             headingTextStyle:
                                 const TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
                             ),
+
                             columnSpacing: 12,
+
                             columns: const [
                               DataColumn(
                                 label: SizedBox(
                                   width: 130,
+
                                   child: Text(
                                     'FECHA DE\nREVISIÓN',
-                                    textAlign: TextAlign.center,
+                                    textAlign:
+                                        TextAlign.center,
                                   ),
                                 ),
                               ),
+
                               DataColumn(
                                 label: SizedBox(
                                   width: 90,
+
                                   child: Text(
                                     'NO. EST.',
-                                    textAlign: TextAlign.center,
+                                    textAlign:
+                                        TextAlign.center,
                                   ),
                                 ),
                               ),
+
                               DataColumn(
                                 label: SizedBox(
                                   width: 280,
+
                                   child: Text(
                                     'ANOMALÍA ENCONTRADA',
-                                    textAlign: TextAlign.center,
+                                    textAlign:
+                                        TextAlign.center,
                                   ),
                                 ),
                               ),
+
                               DataColumn(
                                 label: SizedBox(
                                   width: 150,
+
                                   child: Text(
                                     'FECHA DE\nCORRECCIÓN',
-                                    textAlign: TextAlign.center,
+                                    textAlign:
+                                        TextAlign.center,
                                   ),
                                 ),
                               ),
+
                               DataColumn(
                                 label: SizedBox(
                                   width: 50,
+
                                   child: Text(''),
                                 ),
                               ),
                             ],
+
                             rows: List.generate(
                               anomalias.length,
+
                               (index) {
                                 final anomalia =
                                     anomalias[index];
@@ -542,10 +655,12 @@ class _NuevaInspeccionScreenState
                                     DataCell(
                                       SizedBox(
                                         width: 130,
+
                                         child: TextField(
                                           controller:
                                               anomalia
                                                   .fechaRevision,
+
                                           decoration:
                                               const InputDecoration(
                                             hintText:
@@ -558,10 +673,12 @@ class _NuevaInspeccionScreenState
                                     DataCell(
                                       SizedBox(
                                         width: 90,
+
                                         child: TextField(
                                           controller:
                                               anomalia
                                                   .numeroEstacion,
+
                                           decoration:
                                               const InputDecoration(
                                             hintText: 'No.',
@@ -573,10 +690,13 @@ class _NuevaInspeccionScreenState
                                     DataCell(
                                       SizedBox(
                                         width: 280,
+
                                         child: TextField(
                                           controller:
                                               anomalia.anomalia,
+
                                           maxLines: 2,
+
                                           decoration:
                                               const InputDecoration(
                                             hintText:
@@ -589,10 +709,12 @@ class _NuevaInspeccionScreenState
                                     DataCell(
                                       SizedBox(
                                         width: 150,
+
                                         child: TextField(
                                           controller:
                                               anomalia
                                                   .fechaCorreccion,
+
                                           decoration:
                                               const InputDecoration(
                                             hintText:
@@ -605,10 +727,12 @@ class _NuevaInspeccionScreenState
                                     DataCell(
                                       IconButton(
                                         tooltip: 'Eliminar',
+
                                         icon: const Icon(
                                           Icons.delete,
                                           color: Colors.red,
                                         ),
+
                                         onPressed: () {
                                           eliminarAnomalia(
                                             index,
@@ -627,9 +751,14 @@ class _NuevaInspeccionScreenState
 
                         SizedBox(
                           width: double.infinity,
+
                           child: OutlinedButton.icon(
                             onPressed: agregarAnomalia,
-                            icon: const Icon(Icons.add),
+
+                            icon: const Icon(
+                              Icons.add,
+                            ),
+
                             label: const Text(
                               'AGREGAR ANOMALÍA',
                             ),
@@ -642,15 +771,22 @@ class _NuevaInspeccionScreenState
 
                 const SizedBox(height: 16),
 
+                // ============================================================
+                // FIRMAS
+                // ============================================================
+
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(20),
+
                     child: Column(
                       crossAxisAlignment:
                           CrossAxisAlignment.start,
+
                       children: [
                         const Text(
                           'FIRMAS',
+
                           style: TextStyle(
                             color: Color(0xFF007A4D),
                             fontSize: 18,
@@ -662,6 +798,7 @@ class _NuevaInspeccionScreenState
 
                         const Text(
                           'ELABORÓ:',
+
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                           ),
@@ -671,8 +808,11 @@ class _NuevaInspeccionScreenState
 
                         TextField(
                           controller: elaboroController,
-                          decoration: const InputDecoration(
+
+                          decoration:
+                              const InputDecoration(
                             hintText: 'Nombre y Firma',
+
                             prefixIcon: Icon(
                               Icons.person,
                             ),
@@ -683,6 +823,7 @@ class _NuevaInspeccionScreenState
 
                         const Text(
                           'Vo. Bo.',
+
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                           ),
@@ -692,8 +833,11 @@ class _NuevaInspeccionScreenState
 
                         TextField(
                           controller: voBoController,
-                          decoration: const InputDecoration(
+
+                          decoration:
+                              const InputDecoration(
                             hintText: 'Nombre y Firma',
+
                             prefixIcon: Icon(
                               Icons.verified_user,
                             ),
@@ -706,22 +850,35 @@ class _NuevaInspeccionScreenState
 
                 const SizedBox(height: 20),
 
+                // ============================================================
+                // BOTÓN GUARDAR
+                // ============================================================
+
                 SizedBox(
                   height: 55,
+
                   child: ElevatedButton.icon(
                     onPressed: guardarInspeccion,
-                    icon: const Icon(Icons.save),
+
+                    icon: const Icon(
+                      Icons.save,
+                    ),
+
                     label: const Text(
                       'GUARDAR INSPECCIÓN',
+
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
+
                     style: ElevatedButton.styleFrom(
                       backgroundColor:
                           const Color(0xFF007A4D),
+
                       foregroundColor: Colors.white,
+
                       shape: RoundedRectangleBorder(
                         borderRadius:
                             BorderRadius.circular(8),
