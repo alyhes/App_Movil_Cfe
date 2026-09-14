@@ -8,6 +8,10 @@ class DatabaseHelper {
 
   DatabaseHelper._init();
 
+  // ============================================================
+  // OBTENER BASE DE DATOS
+  // ============================================================
+
   Future<Database> get database async {
     if (_database != null) {
       return _database!;
@@ -18,6 +22,10 @@ class DatabaseHelper {
     return _database!;
   }
 
+  // ============================================================
+  // INICIAR BASE DE DATOS
+  // ============================================================
+
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
@@ -25,15 +33,26 @@ class DatabaseHelper {
     return await openDatabase(
       path,
       version: 2,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
       onCreate: _createDB,
       onUpgrade: _onUpgrade,
     );
   }
 
+  // ============================================================
+  // CREAR BASE DE DATOS
+  // ============================================================
+
   Future<void> _createDB(
     Database db,
     int version,
   ) async {
+    // ==========================================================
+    // TABLA DE INSPECCIONES
+    // ==========================================================
+
     await db.execute('''
       CREATE TABLE inspecciones (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,6 +65,10 @@ class DatabaseHelper {
         sincronizado INTEGER NOT NULL DEFAULT 0
       )
     ''');
+
+    // ==========================================================
+    // TABLA DE ANOMALÍAS / TORRES
+    // ==========================================================
 
     await db.execute('''
       CREATE TABLE anomalias (
@@ -62,12 +85,20 @@ class DatabaseHelper {
     ''');
   }
 
+  // ============================================================
+  // ACTUALIZAR BASE DE DATOS
+  // ============================================================
+
   Future<void> _onUpgrade(
     Database db,
     int oldVersion,
     int newVersion,
   ) async {
     if (oldVersion < 2) {
+      // ========================================================
+      // CREAR TABLA DE ANOMALÍAS
+      // ========================================================
+
       await db.execute('''
         CREATE TABLE IF NOT EXISTS anomalias (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,6 +113,10 @@ class DatabaseHelper {
         )
       ''');
 
+      // ========================================================
+      // REVISAR COLUMNAS EXISTENTES
+      // ========================================================
+
       final columnas = await db.rawQuery(
         'PRAGMA table_info(inspecciones)',
       );
@@ -90,12 +125,20 @@ class DatabaseHelper {
           .map((columna) => columna['name'] as String)
           .toSet();
 
+      // ========================================================
+      // LÍNEA
+      // ========================================================
+
       if (!nombresColumnas.contains('linea_transmision')) {
         await db.execute('''
           ALTER TABLE inspecciones
           ADD COLUMN linea_transmision TEXT NOT NULL DEFAULT ''
         ''');
       }
+
+      // ========================================================
+      // ZONA
+      // ========================================================
 
       if (!nombresColumnas.contains('zona_transmision')) {
         await db.execute('''
@@ -104,12 +147,20 @@ class DatabaseHelper {
         ''');
       }
 
+      // ========================================================
+      // TIPO
+      // ========================================================
+
       if (!nombresColumnas.contains('tipo_inspeccion')) {
         await db.execute('''
           ALTER TABLE inspecciones
           ADD COLUMN tipo_inspeccion TEXT NOT NULL DEFAULT ''
         ''');
       }
+
+      // ========================================================
+      // ELABORÓ
+      // ========================================================
 
       if (!nombresColumnas.contains('elaboro')) {
         await db.execute('''
@@ -118,12 +169,20 @@ class DatabaseHelper {
         ''');
       }
 
+      // ========================================================
+      // VO. BO.
+      // ========================================================
+
       if (!nombresColumnas.contains('visto_bueno')) {
         await db.execute('''
           ALTER TABLE inspecciones
           ADD COLUMN visto_bueno TEXT
         ''');
       }
+
+      // ========================================================
+      // SINCRONIZADO
+      // ========================================================
 
       if (!nombresColumnas.contains('sincronizado')) {
         await db.execute('''
@@ -133,6 +192,10 @@ class DatabaseHelper {
       }
     }
   }
+
+  // ============================================================
+  // INSERTAR UNA INSPECCIÓN
+  // ============================================================
 
   Future<int> insertarInspeccion(
     Map<String, dynamic> inspeccion,
@@ -145,6 +208,10 @@ class DatabaseHelper {
     );
   }
 
+  // ============================================================
+  // INSERTAR UNA ANOMALÍA
+  // ============================================================
+
   Future<int> insertarAnomalia(
     Map<String, dynamic> anomalia,
   ) async {
@@ -156,6 +223,59 @@ class DatabaseHelper {
     );
   }
 
+  // ============================================================
+  // GUARDAR INSPECCIÓN COMPLETA
+  //
+  // Aquí se guarda:
+  //
+  // 1. La información general de la inspección.
+  // 2. Todas las torres seleccionadas.
+  // 3. La anomalía de cada torre.
+  // 4. La fecha de corrección de cada torre.
+  //
+  // ============================================================
+
+  Future<int> guardarInspeccionCompleta({
+    required Map<String, dynamic> inspeccion,
+    required List<Map<String, dynamic>> anomalias,
+  }) async {
+    final db = await database;
+
+    return await db.transaction<int>((txn) async {
+      // ========================================================
+      // GUARDAR INSPECCIÓN
+      // ========================================================
+
+      final inspeccionId = await txn.insert(
+        'inspecciones',
+        inspeccion,
+      );
+
+      // ========================================================
+      // GUARDAR CADA TORRE / ANOMALÍA
+      // ========================================================
+
+      for (final anomalia in anomalias) {
+        final datosAnomalia = Map<String, dynamic>.from(
+          anomalia,
+        );
+
+        datosAnomalia['inspeccion_id'] = inspeccionId;
+
+        await txn.insert(
+          'anomalias',
+          datosAnomalia,
+        );
+      }
+
+      return inspeccionId;
+    });
+  }
+
+  // ============================================================
+  // OBTENER TODAS LAS INSPECCIONES
+  // ============================================================
+
   Future<List<Map<String, dynamic>>> obtenerInspecciones() async {
     final db = await database;
 
@@ -164,6 +284,10 @@ class DatabaseHelper {
       orderBy: 'id DESC',
     );
   }
+
+  // ============================================================
+  // OBTENER ANOMALÍAS DE UNA INSPECCIÓN
+  // ============================================================
 
   Future<List<Map<String, dynamic>>> obtenerAnomalias(
     int inspeccionId,
@@ -178,6 +302,112 @@ class DatabaseHelper {
     );
   }
 
+  // ============================================================
+  // OBTENER UNA INSPECCIÓN ESPECÍFICA
+  // ============================================================
+
+  Future<Map<String, dynamic>?> obtenerInspeccion(
+    int inspeccionId,
+  ) async {
+    final db = await database;
+
+    final resultado = await db.query(
+      'inspecciones',
+      where: 'id = ?',
+      whereArgs: [inspeccionId],
+      limit: 1,
+    );
+
+    if (resultado.isEmpty) {
+      return null;
+    }
+
+    return resultado.first;
+  }
+
+  // ============================================================
+  // OBTENER INSPECCIÓN CON SUS ANOMALÍAS
+  // ============================================================
+
+  Future<Map<String, dynamic>?> obtenerInspeccionCompleta(
+    int inspeccionId,
+  ) async {
+    final inspeccion =
+        await obtenerInspeccion(inspeccionId);
+
+    if (inspeccion == null) {
+      return null;
+    }
+
+    final anomalias =
+        await obtenerAnomalias(inspeccionId);
+
+    return {
+      'inspeccion': inspeccion,
+      'anomalias': anomalias,
+    };
+  }
+
+  // ============================================================
+  // ACTUALIZAR ANOMALÍA
+  //
+  // Esto permitirá que posteriormente podamos modificar:
+  //
+  // - La anomalía.
+  // - La fecha de corrección.
+  //
+  // ============================================================
+
+  Future<int> actualizarAnomalia(
+    int anomaliaId,
+    Map<String, dynamic> datos,
+  ) async {
+    final db = await database;
+
+    return await db.update(
+      'anomalias',
+      datos,
+      where: 'id = ?',
+      whereArgs: [anomaliaId],
+    );
+  }
+
+  // ============================================================
+  // ACTUALIZAR FECHA DE CORRECCIÓN
+  //
+  // Ejemplo:
+  //
+  // PENDIENTE
+  //       ↓
+  // 15/09/2026
+  //
+  // ============================================================
+
+  Future<int> actualizarFechaCorreccion(
+    int anomaliaId,
+    String fechaCorreccion,
+  ) async {
+    final db = await database;
+
+    return await db.update(
+      'anomalias',
+      {
+        'fecha_correccion': fechaCorreccion,
+      },
+      where: 'id = ?',
+      whereArgs: [anomaliaId],
+    );
+  }
+
+  // ============================================================
+  // ELIMINAR UNA INSPECCIÓN
+  //
+  // También elimina sus anomalías gracias a:
+  //
+  // ON DELETE CASCADE
+  //
+  // ============================================================
+
   Future<int> eliminarInspeccion(
     int id,
   ) async {
@@ -189,6 +419,10 @@ class DatabaseHelper {
       whereArgs: [id],
     );
   }
+
+  // ============================================================
+  // CERRAR BASE DE DATOS
+  // ============================================================
 
   Future<void> cerrarBaseDeDatos() async {
     if (_database != null) {
