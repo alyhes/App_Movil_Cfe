@@ -13,6 +13,26 @@ class InicioScreen extends StatefulWidget {
 }
 
 // ============================================================
+// MODELO PARA CADA LÍNEA DE TRANSMISIÓN
+// ============================================================
+
+class _LineaTransmision {
+  final String codigo;
+  final String tramo;
+  final int torreInicial;
+  final int torreFinal;
+
+  const _LineaTransmision({
+    required this.codigo,
+    required this.tramo,
+    required this.torreInicial,
+    required this.torreFinal,
+  });
+
+  String get nombreCompleto => '$codigo ($tramo)';
+}
+
+// ============================================================
 // MODELO INTERNO PARA CADA FILA / TORRE
 // ============================================================
 
@@ -46,7 +66,7 @@ class _InicioScreenState extends State<InicioScreen> {
   // ============================================================
 
   String? voltajeSeleccionado;
-  String? lineaSeleccionada;
+  _LineaTransmision? lineaSeleccionada;
 
   // ============================================================
   // FECHA DE INSPECCIÓN
@@ -126,42 +146,152 @@ class _InicioScreenState extends State<InicioScreen> {
   ];
 
   // ============================================================
-  // LÍNEAS SEGÚN VOLTAJE
+  // INFORMACIÓN REAL DE LAS LÍNEAS
   // ============================================================
 
-  List<String> obtenerLineas() {
+  final List<_LineaTransmision> lineas115 = const [
+    _LineaTransmision(
+      codigo: '73120',
+      tramo: 'ESA-CMO',
+      torreInicial: 1,
+      torreFinal: 326,
+    ),
+    _LineaTransmision(
+      codigo: '73130',
+      tramo: 'CMO-SBY',
+      torreInicial: 1,
+      torreFinal: 198,
+    ),
+    _LineaTransmision(
+      codigo: '73150',
+      tramo: 'ESA-SBY',
+      torreInicial: 1,
+      torreFinal: 180,
+    ),
+    _LineaTransmision(
+      codigo: '73160',
+      tramo: 'SBY-CRE',
+      torreInicial: 1,
+      torreFinal: 219,
+    ),
+    _LineaTransmision(
+      codigo: '73170',
+      tramo: 'SBY-CRE',
+      torreInicial: 1,
+      torreFinal: 219,
+    ),
+    _LineaTransmision(
+      codigo: '73180',
+      tramo: 'CNR-LTE',
+      torreInicial: 1,
+      torreFinal: 19,
+    ),
+    _LineaTransmision(
+      codigo: '73190',
+      tramo: 'ESA-SBY',
+      torreInicial: 1,
+      torreFinal: 134,
+    ),
+    _LineaTransmision(
+      codigo: '73A10',
+      tramo: 'CRE-LTE',
+      torreInicial: 1,
+      torreFinal: 45,
+    ),
+    _LineaTransmision(
+      codigo: '73A40',
+      tramo: 'ESA-XPU',
+      torreInicial: 1,
+      torreFinal: 455,
+    ),
+    _LineaTransmision(
+      codigo: '73A70',
+      tramo: 'CNR-CRE',
+      torreInicial: 1,
+      torreFinal: 63,
+    ),
+    _LineaTransmision(
+      codigo: '73A90',
+      tramo: 'CAS-ESA',
+      torreInicial: 1,
+      torreFinal: 394,
+    ),
+  ];
+
+  final List<_LineaTransmision> lineas230 = const [
+    _LineaTransmision(
+      codigo: '93010',
+      tramo: 'ESA-LRA',
+      torreInicial: 1,
+      torreFinal: 215,
+    ),
+    _LineaTransmision(
+      codigo: '93100',
+      tramo: 'ESA-XUL',
+      torreInicial: 1,
+      torreFinal: 455,
+    ),
+    _LineaTransmision(
+      codigo: '93210',
+      tramo: 'KAH-ESA',
+      torreInicial: 31,
+      torreFinal: 374,
+    ),
+    _LineaTransmision(
+      codigo: '93200',
+      tramo: 'SLC-KAH',
+      torreInicial: 1,
+      torreFinal: 32,
+    ),
+    _LineaTransmision(
+      codigo: '93220',
+      tramo: 'SLC-ESA',
+      torreInicial: 1,
+      torreFinal: 374,
+    ),
+  ];
+
+  final List<_LineaTransmision> lineas400 = const [
+    _LineaTransmision(
+      codigo: 'A3Q00',
+      tramo: 'TSP-ESA',
+      torreInicial: 369,
+      torreFinal: 712,
+    ),
+    _LineaTransmision(
+      codigo: 'A3Q10',
+      tramo: 'TSP-ESA',
+      torreInicial: 369,
+      torreFinal: 712,
+    ),
+    _LineaTransmision(
+      codigo: 'A3Q20',
+      tramo: 'ESA-TIC',
+      torreInicial: 1,
+      torreFinal: 223,
+    ),
+    _LineaTransmision(
+      codigo: 'A3Q30',
+      tramo: 'ESA-TIC',
+      torreInicial: 1,
+      torreFinal: 223,
+    ),
+  ];
+
+  // ============================================================
+  // OBTENER LÍNEAS SEGÚN VOLTAJE
+  // ============================================================
+
+  List<_LineaTransmision> obtenerLineas() {
     switch (voltajeSeleccionado) {
       case '115 kV':
-        return [
-          '73120',
-          '73130',
-          '73150',
-          '73160',
-          '73170',
-          '73180',
-          '73190',
-          '73A10',
-          '73A40',
-          '73A70',
-          '73A90',
-        ];
+        return lineas115;
 
       case '230 kV':
-        return [
-          '93010',
-          '93100',
-          '93210',
-          '93200',
-          '93220',
-        ];
+        return lineas230;
 
       case '400 kV':
-        return [
-          'A3Q00',
-          'A3Q10',
-          'A3Q20',
-          'A3Q30',
-        ];
+        return lineas400;
 
       default:
         return [];
@@ -169,44 +299,27 @@ class _InicioScreenState extends State<InicioScreen> {
   }
 
   // ============================================================
-  // TORRES
+  // OBTENER TORRES DE LA LÍNEA SELECCIONADA
   // ============================================================
 
   List<String> obtenerTorres() {
-    if (voltajeSeleccionado == null ||
-        lineaSeleccionada == null) {
+    if (lineaSeleccionada == null) {
       return [];
     }
 
-    // ==========================================================
-    // 230 kV
-    // ==========================================================
+    final int inicio = lineaSeleccionada!.torreInicial;
+    final int fin = lineaSeleccionada!.torreFinal;
 
-    if (voltajeSeleccionado == '230 kV' &&
-        (lineaSeleccionada == '93210' ||
-            lineaSeleccionada == '93220')) {
-      return List.generate(
-        50,
-        (index) =>
-            'T-${(index + 1).toString().padLeft(3, '0')}',
-      );
-    }
+    final int cantidad = fin - inicio + 1;
 
-    // ==========================================================
-    // 400 kV
-    // ==========================================================
+    return List.generate(
+      cantidad,
+      (index) {
+        final numero = inicio + index;
 
-    if (voltajeSeleccionado == '400 kV' &&
-        (lineaSeleccionada == 'A3Q00' ||
-            lineaSeleccionada == 'A3Q10')) {
-      return List.generate(
-        50,
-        (index) =>
-            'T-${(index + 1).toString().padLeft(3, '0')}',
-      );
-    }
-
-    return [];
+        return 'T-${numero.toString().padLeft(3, '0')}';
+      },
+    );
   }
 
   // ============================================================
@@ -264,7 +377,7 @@ class _InicioScreenState extends State<InicioScreen> {
   }
 
   // ============================================================
-  // LIMPIAR TORRES
+  // LIMPIAR TORRES SELECCIONADAS
   // ============================================================
 
   void limpiarTorresSeleccionadas() {
@@ -275,7 +388,69 @@ class _InicioScreenState extends State<InicioScreen> {
   }
 
   // ============================================================
-  // SELECCIONAR FECHA
+  // LIMPIAR TODO EL FORMULARIO
+  // ============================================================
+  //
+  // IMPORTANTE:
+  // Esta función solamente limpia los campos de la pantalla.
+  // Los datos que ya se guardaron en SQLite NO se eliminan.
+  //
+  // ============================================================
+
+  void limpiarFormulario() {
+    setState(() {
+      // --------------------------------------------------------
+      // DATOS GENERALES
+      // --------------------------------------------------------
+
+      voltajeSeleccionado = null;
+      lineaSeleccionada = null;
+      fechaSeleccionada = null;
+      zonaSeleccionada = null;
+
+      // --------------------------------------------------------
+      // TIPO DE INSPECCIÓN
+      // --------------------------------------------------------
+
+      tipoInspeccionController.clear();
+
+      // --------------------------------------------------------
+      // BUSCADOR DE TORRES
+      // --------------------------------------------------------
+
+      buscadorTorreController.clear();
+      busquedaTorre = '';
+
+      // --------------------------------------------------------
+      // TORRES
+      // --------------------------------------------------------
+
+      torresSeleccionadas.clear();
+
+      // --------------------------------------------------------
+      // ELABORÓ
+      // --------------------------------------------------------
+
+      elaboroNombreController.clear();
+      elaboroRpeController.clear();
+
+      // --------------------------------------------------------
+      // VO. BO.
+      // --------------------------------------------------------
+
+      voBoNombreController.clear();
+      voBoRpeController.clear();
+
+      // --------------------------------------------------------
+      // ELIMINAR FILAS DE LA TABLA
+      // --------------------------------------------------------
+
+      actualizarFilasTorres();
+    });
+  }
+
+  // ============================================================
+  // SELECCIONAR FECHA GENERAL
   // ============================================================
 
   Future<void> seleccionarFecha() async {
@@ -290,6 +465,163 @@ class _InicioScreenState extends State<InicioScreen> {
     if (fecha != null) {
       setState(() {
         fechaSeleccionada = fecha;
+      });
+    }
+  }
+
+  // ============================================================
+  // SELECCIONAR FECHA DE UNA FILA
+  // ============================================================
+
+  Future<void> seleccionarFechaFila(
+    TextEditingController controller, {
+    bool permitirPendiente = true,
+  }) async {
+    final String? opcion = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(15),
+                child: Text(
+                  'Seleccionar fecha',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+
+              // ==================================================
+              // OPCIÓN CALENDARIO
+              // ==================================================
+
+              ListTile(
+                leading: const Icon(
+                  Icons.calendar_month,
+                  color: Color(0xFF007A4D),
+                ),
+                title: const Text(
+                  'Seleccionar una fecha',
+                ),
+                subtitle: const Text(
+                  'Elegir la fecha desde el calendario',
+                ),
+                onTap: () {
+                  Navigator.pop(
+                    context,
+                    'calendario',
+                  );
+                },
+              ),
+
+              // ==================================================
+              // OPCIÓN PENDIENTE
+              // ==================================================
+
+              if (permitirPendiente)
+                ListTile(
+                  leading: const Icon(
+                    Icons.pending_actions,
+                    color: Colors.orange,
+                  ),
+                  title: const Text(
+                    'PENDIENTE',
+                  ),
+                  subtitle: const Text(
+                    'Todavía no se ha realizado o terminado',
+                  ),
+                  onTap: () {
+                    Navigator.pop(
+                      context,
+                      'pendiente',
+                    );
+                  },
+                ),
+
+              // ==================================================
+              // CANCELAR
+              // ==================================================
+
+              ListTile(
+                leading: const Icon(
+                  Icons.close,
+                  color: Colors.grey,
+                ),
+                title: const Text(
+                  'Cancelar',
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                },
+              ),
+
+              const SizedBox(height: 5),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (!mounted || opcion == null) {
+      return;
+    }
+
+    // ==========================================================
+    // SELECCIONAR CALENDARIO
+    // ==========================================================
+
+    if (opcion == 'calendario') {
+      DateTime fechaInicial = DateTime.now();
+
+      final textoActual = controller.text.trim();
+
+      if (RegExp(r'^\d{2}/\d{2}/\d{4}$').hasMatch(textoActual)) {
+        try {
+          final partes = textoActual.split('/');
+
+          final dia = int.parse(partes[0]);
+          final mes = int.parse(partes[1]);
+          final anio = int.parse(partes[2]);
+
+          fechaInicial = DateTime(
+            anio,
+            mes,
+            dia,
+          );
+        } catch (_) {
+          fechaInicial = DateTime.now();
+        }
+      }
+
+      final DateTime? fecha = await showDatePicker(
+        context: context,
+        initialDate: fechaInicial,
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2100),
+        locale: const Locale('es', 'MX'),
+        helpText: 'SELECCIONE LA FECHA',
+        cancelText: 'CANCELAR',
+        confirmText: 'ACEPTAR',
+      );
+
+      if (fecha != null) {
+        setState(() {
+          controller.text = formatearFecha(fecha);
+        });
+      }
+    }
+
+    // ==========================================================
+    // MARCAR COMO PENDIENTE
+    // ==========================================================
+
+    if (opcion == 'pendiente') {
+      setState(() {
+        controller.text = 'PENDIENTE';
       });
     }
   }
@@ -390,10 +722,8 @@ class _InicioScreenState extends State<InicioScreen> {
         'fecha_inspeccion':
             formatearFecha(fechaSeleccionada!),
 
-        // La base actual no tiene columna de voltaje.
-        // Guardamos voltaje + línea juntos.
         'linea_transmision':
-            '$voltajeSeleccionado - $lineaSeleccionada',
+            '$voltajeSeleccionado - ${lineaSeleccionada!.nombreCompleto}',
 
         'zona_transmision':
             zonaSeleccionada!,
@@ -401,7 +731,6 @@ class _InicioScreenState extends State<InicioScreen> {
         'tipo_inspeccion':
             tipoInspeccionController.text.trim(),
 
-        // Guardamos nombre + RPE juntos.
         'elaboro':
             '${elaboroNombreController.text.trim()} '
             '(RPE: ${elaboroRpeController.text.trim()})',
@@ -427,7 +756,6 @@ class _InicioScreenState extends State<InicioScreen> {
           'fecha_revision':
               fila.fechaRevisionController.text.trim(),
 
-          // Aquí guardamos el número de torre.
           'numero_estacion':
               fila.torre,
 
@@ -483,6 +811,7 @@ class _InicioScreenState extends State<InicioScreen> {
               'La inspección se guardó correctamente '
               'en el dispositivo.\n\n'
               'Número de registro: $id\n'
+              'Línea: ${lineaSeleccionada!.nombreCompleto}\n'
               'Torres guardadas: ${torresSeleccionadas.length}',
             ),
             actions: [
@@ -492,9 +821,20 @@ class _InicioScreenState extends State<InicioScreen> {
                       const Color(0xFF007A4D),
                   foregroundColor: Colors.white,
                 ),
+
+                // ==================================================
+                // AQUÍ SE LIMPIA EL FORMULARIO
+                // ==================================================
+
                 onPressed: () {
                   Navigator.of(context).pop();
+
+                  // Después de cerrar el mensaje,
+                  // dejamos la pantalla lista para
+                  // registrar una nueva inspección.
+                  limpiarFormulario();
                 },
+
                 child: const Text('ACEPTAR'),
               ),
             ],
@@ -647,7 +987,6 @@ class _InicioScreenState extends State<InicioScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-
             // ==================================================
             // ENCABEZADO CFE
             // ==================================================
@@ -795,7 +1134,6 @@ class _InicioScreenState extends State<InicioScreen> {
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
-
                   const Text(
                     'LÍNEA DE TRANSMISIÓN:',
                     style: TextStyle(
@@ -816,9 +1154,22 @@ class _InicioScreenState extends State<InicioScreen> {
                       labelText: 'Seleccione el voltaje',
                       labelStyle:
                           const TextStyle(fontSize: 11),
+                      prefixIcon: const Icon(
+                        Icons.bolt,
+                        color: Color(0xFF007A4D),
+                        size: 20,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(5),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF007A4D),
+                          width: 2,
+                        ),
                       ),
                       contentPadding:
                           const EdgeInsets.symmetric(
@@ -865,15 +1216,31 @@ class _InicioScreenState extends State<InicioScreen> {
 
                     const SizedBox(height: 6),
 
-                    DropdownButtonFormField<String>(
+                    DropdownButtonFormField<_LineaTransmision>(
                       initialValue: lineaSeleccionada,
+                      isExpanded: true,
                       decoration: InputDecoration(
                         labelText: 'Seleccione la línea',
                         labelStyle:
                             const TextStyle(fontSize: 11),
+                        prefixIcon: const Icon(
+                          Icons.electrical_services,
+                          color: Color(0xFF007A4D),
+                          size: 20,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius:
                               BorderRadius.circular(5),
+                        ),
+                        focusedBorder:
+                            OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(5),
+                          borderSide:
+                              const BorderSide(
+                            color: Color(0xFF007A4D),
+                            width: 2,
+                          ),
                         ),
                         contentPadding:
                             const EdgeInsets.symmetric(
@@ -886,9 +1253,13 @@ class _InicioScreenState extends State<InicioScreen> {
                         color: Colors.black,
                       ),
                       items: obtenerLineas().map((linea) {
-                        return DropdownMenuItem<String>(
+                        return DropdownMenuItem<
+                            _LineaTransmision>(
                           value: linea,
-                          child: Text(linea),
+                          child: Text(
+                            linea.nombreCompleto,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         );
                       }).toList(),
                       onChanged: (valor) {
@@ -900,6 +1271,51 @@ class _InicioScreenState extends State<InicioScreen> {
                           actualizarFilasTorres();
                         });
                       },
+                    ),
+                  ],
+
+                  // ==================================================
+                  // INFORMACIÓN DEL RANGO DE TORRES
+                  // ==================================================
+
+                  if (lineaSeleccionada != null) ...[
+                    const SizedBox(height: 10),
+
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        border: Border.all(
+                          color: const Color(0xFF007A4D),
+                        ),
+                        borderRadius:
+                            BorderRadius.circular(5),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.account_tree,
+                            color: Color(0xFF007A4D),
+                            size: 21,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Línea: ${lineaSeleccionada!.nombreCompleto}\n'
+                              'Torres disponibles: '
+                              'T-${lineaSeleccionada!.torreInicial.toString().padLeft(3, '0')} '
+                              'a '
+                              'T-${lineaSeleccionada!.torreFinal.toString().padLeft(3, '0')}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF007A4D),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
 
@@ -936,6 +1352,7 @@ class _InicioScreenState extends State<InicioScreen> {
                         ),
                         prefixIcon: const Icon(
                           Icons.search,
+                          color: Color(0xFF007A4D),
                           size: 20,
                         ),
                         suffixIcon:
@@ -958,6 +1375,16 @@ class _InicioScreenState extends State<InicioScreen> {
                         border: OutlineInputBorder(
                           borderRadius:
                               BorderRadius.circular(5),
+                        ),
+                        focusedBorder:
+                            OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(5),
+                          borderSide:
+                              const BorderSide(
+                            color: Color(0xFF007A4D),
+                            width: 2,
+                          ),
                         ),
                         contentPadding:
                             const EdgeInsets.symmetric(
@@ -1031,7 +1458,8 @@ class _InicioScreenState extends State<InicioScreen> {
                               ),
                             ),
                           ),
-                          if (torresSeleccionadas.isNotEmpty)
+                          if (torresSeleccionadas
+                              .isNotEmpty)
                             TextButton(
                               onPressed:
                                   limpiarTorresSeleccionadas,
@@ -1056,7 +1484,7 @@ class _InicioScreenState extends State<InicioScreen> {
 
                     if (obtenerTorres().isNotEmpty)
                       Container(
-                        height: 230,
+                        height: 250,
                         decoration: BoxDecoration(
                           border: Border.all(
                             color: Colors.grey,
@@ -1139,7 +1567,8 @@ class _InicioScreenState extends State<InicioScreen> {
                     // TORRES SELECCIONADAS
                     // ==================================================
 
-                    if (torresSeleccionadas.isNotEmpty) ...[
+                    if (torresSeleccionadas
+                        .isNotEmpty) ...[
                       const SizedBox(height: 10),
 
                       const Text(
@@ -1156,19 +1585,31 @@ class _InicioScreenState extends State<InicioScreen> {
                         spacing: 5,
                         runSpacing: 5,
                         children:
-                            torresSeleccionadas.map((torre) {
+                            torresSeleccionadas
+                                .map((torre) {
                           return Chip(
+                            backgroundColor:
+                                const Color(
+                              0xFFE8F5E9,
+                            ),
                             label: Text(
                               torre,
                               style:
                                   const TextStyle(
                                 fontSize: 10,
+                                color: Color(
+                                  0xFF007A4D,
+                                ),
+                                fontWeight:
+                                    FontWeight.bold,
                               ),
                             ),
                             deleteIcon:
                                 const Icon(
                               Icons.close,
                               size: 15,
+                              color:
+                                  Color(0xFF007A4D),
                             ),
                             onDeleted: () {
                               cambiarSeleccionTorre(
@@ -1184,7 +1625,7 @@ class _InicioScreenState extends State<InicioScreen> {
                   const SizedBox(height: 14),
 
                   // ==================================================
-                  // FECHA
+                  // FECHA GENERAL
                   // ==================================================
 
                   _campoFecha(),
@@ -1216,9 +1657,22 @@ class _InicioScreenState extends State<InicioScreen> {
                         fontSize: 11,
                         color: Colors.grey,
                       ),
+                      prefixIcon: const Icon(
+                        Icons.assignment_outlined,
+                        color: Color(0xFF007A4D),
+                        size: 20,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(5),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF007A4D),
+                          width: 2,
+                        ),
                       ),
                       contentPadding:
                           const EdgeInsets.all(10),
@@ -1251,9 +1705,22 @@ class _InicioScreenState extends State<InicioScreen> {
                       labelText: 'Seleccione la zona',
                       labelStyle:
                           const TextStyle(fontSize: 11),
+                      prefixIcon: const Icon(
+                        Icons.location_on_outlined,
+                        color: Color(0xFF007A4D),
+                        size: 20,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(5),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF007A4D),
+                          width: 2,
+                        ),
                       ),
                       contentPadding:
                           const EdgeInsets.symmetric(
@@ -1297,7 +1764,6 @@ class _InicioScreenState extends State<InicioScreen> {
               ),
               child: Column(
                 children: [
-
                   // ==================================================
                   // ENCABEZADO
                   // ==================================================
@@ -1395,7 +1861,6 @@ class _InicioScreenState extends State<InicioScreen> {
                 crossAxisAlignment:
                     CrossAxisAlignment.start,
                 children: [
-
                   const Text(
                     'ELABORÓ:',
                     style: TextStyle(
@@ -1421,11 +1886,20 @@ class _InicioScreenState extends State<InicioScreen> {
                       ),
                       prefixIcon: const Icon(
                         Icons.person_outline,
+                        color: Color(0xFF007A4D),
                         size: 20,
                       ),
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(5),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF007A4D),
+                          width: 2,
+                        ),
                       ),
                       contentPadding:
                           const EdgeInsets.symmetric(
@@ -1433,7 +1907,9 @@ class _InicioScreenState extends State<InicioScreen> {
                         vertical: 4,
                       ),
                     ),
-                    style: const TextStyle(fontSize: 12),
+                    style: const TextStyle(
+                      fontSize: 12,
+                    ),
                   ),
 
                   const SizedBox(height: 8),
@@ -1452,11 +1928,20 @@ class _InicioScreenState extends State<InicioScreen> {
                       ),
                       prefixIcon: const Icon(
                         Icons.badge_outlined,
+                        color: Color(0xFF007A4D),
                         size: 20,
                       ),
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(5),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF007A4D),
+                          width: 2,
+                        ),
                       ),
                       contentPadding:
                           const EdgeInsets.symmetric(
@@ -1464,7 +1949,9 @@ class _InicioScreenState extends State<InicioScreen> {
                         vertical: 4,
                       ),
                     ),
-                    style: const TextStyle(fontSize: 12),
+                    style: const TextStyle(
+                      fontSize: 12,
+                    ),
                   ),
 
                   const SizedBox(height: 16),
@@ -1494,11 +1981,20 @@ class _InicioScreenState extends State<InicioScreen> {
                       ),
                       prefixIcon: const Icon(
                         Icons.person_outline,
+                        color: Color(0xFF007A4D),
                         size: 20,
                       ),
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(5),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF007A4D),
+                          width: 2,
+                        ),
                       ),
                       contentPadding:
                           const EdgeInsets.symmetric(
@@ -1506,7 +2002,9 @@ class _InicioScreenState extends State<InicioScreen> {
                         vertical: 4,
                       ),
                     ),
-                    style: const TextStyle(fontSize: 12),
+                    style: const TextStyle(
+                      fontSize: 12,
+                    ),
                   ),
 
                   const SizedBox(height: 8),
@@ -1525,11 +2023,20 @@ class _InicioScreenState extends State<InicioScreen> {
                       ),
                       prefixIcon: const Icon(
                         Icons.badge_outlined,
+                        color: Color(0xFF007A4D),
                         size: 20,
                       ),
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius:
+                            BorderRadius.circular(5),
+                        borderSide: const BorderSide(
+                          color: Color(0xFF007A4D),
+                          width: 2,
+                        ),
                       ),
                       contentPadding:
                           const EdgeInsets.symmetric(
@@ -1537,7 +2044,9 @@ class _InicioScreenState extends State<InicioScreen> {
                         vertical: 4,
                       ),
                     ),
-                    style: const TextStyle(fontSize: 12),
+                    style: const TextStyle(
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
@@ -1558,7 +2067,8 @@ class _InicioScreenState extends State<InicioScreen> {
                     ? const SizedBox(
                         width: 20,
                         height: 20,
-                        child: CircularProgressIndicator(
+                        child:
+                            CircularProgressIndicator(
                           strokeWidth: 2.5,
                           color: Colors.white,
                         ),
@@ -1614,7 +2124,7 @@ class _InicioScreenState extends State<InicioScreen> {
   }
 
   // ============================================================
-  // CAMPO FECHA
+  // CAMPO FECHA GENERAL
   // ============================================================
 
   Widget _campoFecha() {
@@ -1629,7 +2139,6 @@ class _InicioScreenState extends State<InicioScreen> {
           crossAxisAlignment:
               CrossAxisAlignment.end,
           children: [
-
             const Text(
               'FECHA:',
               style: TextStyle(
@@ -1645,7 +2154,8 @@ class _InicioScreenState extends State<InicioScreen> {
                 padding: const EdgeInsets.only(
                   bottom: 2,
                 ),
-                decoration: const BoxDecoration(
+                decoration:
+                    const BoxDecoration(
                   border: Border(
                     bottom: BorderSide(
                       color: Colors.black,
@@ -1691,16 +2201,12 @@ class _InicioScreenState extends State<InicioScreen> {
   ) {
     return TableRow(
       children: [
-
         // ======================================================
         // FECHA DE REVISIÓN
         // ======================================================
 
-        _celdaEditable(
-          fila.fechaRevisionController,
-          'dd/mm/aaaa',
-          maxLines: 1,
-          keyboardType: TextInputType.datetime,
+        _celdaFecha(
+          controller: fila.fechaRevisionController,
         ),
 
         // ======================================================
@@ -1738,13 +2244,73 @@ class _InicioScreenState extends State<InicioScreen> {
         // FECHA DE CORRECCIÓN
         // ======================================================
 
-        _celdaEditable(
-          fila.fechaCorreccionController,
-          'dd/mm/aaaa',
-          maxLines: 1,
-          keyboardType: TextInputType.datetime,
+        _celdaFecha(
+          controller: fila.fechaCorreccionController,
         ),
       ],
+    );
+  }
+
+  // ============================================================
+  // CELDA DE FECHA CON CALENDARIO
+  // ============================================================
+
+  Widget _celdaFecha({
+    required TextEditingController controller,
+  }) {
+    return SizedBox(
+      height: 48,
+      child: InkWell(
+        onTap: () {
+          seleccionarFechaFila(
+            controller,
+            permitirPendiente: true,
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.all(3),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisAlignment:
+                MainAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  controller.text.isEmpty
+                      ? 'Seleccione'
+                      : controller.text,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 8,
+                    color: controller.text.isEmpty
+                        ? Colors.grey
+                        : controller.text ==
+                                'PENDIENTE'
+                            ? Colors.orange[800]
+                            : Colors.black,
+                    fontWeight:
+                        controller.text == 'PENDIENTE'
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                  ),
+                ),
+              ),
+
+              const SizedBox(width: 2),
+
+              Icon(
+                controller.text == 'PENDIENTE'
+                    ? Icons.pending_actions
+                    : Icons.calendar_month,
+                size: 15,
+                color: controller.text == 'PENDIENTE'
+                    ? Colors.orange[700]
+                    : const Color(0xFF007A4D),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
