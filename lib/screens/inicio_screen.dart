@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
+import 'inspecciones_guardadas_screen.dart';
+import 'login_screen.dart';
 
 // ============================================================
 // PANTALLA PRINCIPAL - FORMATO DE INSPECCIÓN CFE
@@ -388,69 +390,45 @@ class _InicioScreenState extends State<InicioScreen> {
   }
 
   // ============================================================
-  // LIMPIAR TODO EL FORMULARIO
-  // ============================================================
-  //
-  // IMPORTANTE:
-  // Esta función solamente limpia los campos de la pantalla.
-  // Los datos que ya se guardaron en SQLite NO se eliminan.
-  //
+  // LIMPIAR TODO EL FORMULARIO DESPUÉS DE GUARDAR
   // ============================================================
 
   void limpiarFormulario() {
-    setState(() {
-      // --------------------------------------------------------
-      // DATOS GENERALES
-      // --------------------------------------------------------
+    // Primero liberamos los controladores de las filas actuales.
+    for (final fila in filasTorres) {
+      fila.dispose();
+    }
 
+    setState(() {
+      // Datos principales
       voltajeSeleccionado = null;
       lineaSeleccionada = null;
       fechaSeleccionada = null;
       zonaSeleccionada = null;
 
-      // --------------------------------------------------------
-      // TIPO DE INSPECCIÓN
-      // --------------------------------------------------------
+      // Buscador
+      busquedaTorre = '';
+      buscadorTorreController.clear();
 
+      // Torres seleccionadas
+      torresSeleccionadas.clear();
+      filasTorres.clear();
+
+      // Tipo de inspección
       tipoInspeccionController.clear();
 
-      // --------------------------------------------------------
-      // BUSCADOR DE TORRES
-      // --------------------------------------------------------
-
-      buscadorTorreController.clear();
-      busquedaTorre = '';
-
-      // --------------------------------------------------------
-      // TORRES
-      // --------------------------------------------------------
-
-      torresSeleccionadas.clear();
-
-      // --------------------------------------------------------
-      // ELABORÓ
-      // --------------------------------------------------------
-
+      // Elaboró
       elaboroNombreController.clear();
       elaboroRpeController.clear();
 
-      // --------------------------------------------------------
-      // VO. BO.
-      // --------------------------------------------------------
-
+      // Vo. Bo.
       voBoNombreController.clear();
       voBoRpeController.clear();
-
-      // --------------------------------------------------------
-      // ELIMINAR FILAS DE LA TABLA
-      // --------------------------------------------------------
-
-      actualizarFilasTorres();
     });
   }
 
   // ============================================================
-  // SELECCIONAR FECHA GENERAL
+  // SELECCIONAR FECHA PRINCIPAL
   // ============================================================
 
   Future<void> seleccionarFecha() async {
@@ -470,130 +448,137 @@ class _InicioScreenState extends State<InicioScreen> {
   }
 
   // ============================================================
-  // SELECCIONAR FECHA DE UNA FILA
+  // SELECCIONAR FECHA DE REVISIÓN DE UNA TORRE
   // ============================================================
 
-  Future<void> seleccionarFechaFila(
-    TextEditingController controller, {
-    bool permitirPendiente = true,
-  }) async {
-    final String? opcion = await showModalBottomSheet<String>(
+  Future<void> seleccionarFechaRevision(
+    _FilaTorre fila,
+  ) async {
+    DateTime fechaInicial = DateTime.now();
+
+    if (fila.fechaRevisionController.text.trim().isNotEmpty) {
+      final partes = fila.fechaRevisionController.text
+          .trim()
+          .split('/');
+
+      if (partes.length == 3) {
+        final dia = int.tryParse(partes[0]);
+        final mes = int.tryParse(partes[1]);
+        final anio = int.tryParse(partes[2]);
+
+        if (dia != null && mes != null && anio != null) {
+          fechaInicial = DateTime(anio, mes, dia);
+        }
+      }
+    }
+
+    final DateTime? fecha = await showDatePicker(
       context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Padding(
-                padding: EdgeInsets.all(15),
-                child: Text(
-                  'Seleccionar fecha',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-
-              // ==================================================
-              // OPCIÓN CALENDARIO
-              // ==================================================
-
-              ListTile(
-                leading: const Icon(
-                  Icons.calendar_month,
-                  color: Color(0xFF007A4D),
-                ),
-                title: const Text(
-                  'Seleccionar una fecha',
-                ),
-                subtitle: const Text(
-                  'Elegir la fecha desde el calendario',
-                ),
-                onTap: () {
-                  Navigator.pop(
-                    context,
-                    'calendario',
-                  );
-                },
-              ),
-
-              // ==================================================
-              // OPCIÓN PENDIENTE
-              // ==================================================
-
-              if (permitirPendiente)
-                ListTile(
-                  leading: const Icon(
-                    Icons.pending_actions,
-                    color: Colors.orange,
-                  ),
-                  title: const Text(
-                    'PENDIENTE',
-                  ),
-                  subtitle: const Text(
-                    'Todavía no se ha realizado o terminado',
-                  ),
-                  onTap: () {
-                    Navigator.pop(
-                      context,
-                      'pendiente',
-                    );
-                  },
-                ),
-
-              // ==================================================
-              // CANCELAR
-              // ==================================================
-
-              ListTile(
-                leading: const Icon(
-                  Icons.close,
-                  color: Colors.grey,
-                ),
-                title: const Text(
-                  'Cancelar',
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                },
-              ),
-
-              const SizedBox(height: 5),
-            ],
-          ),
-        );
-      },
+      initialDate: fechaInicial,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      locale: const Locale('es', 'MX'),
     );
 
-    if (!mounted || opcion == null) {
+    if (fecha != null) {
+      setState(() {
+        fila.fechaRevisionController.text =
+            formatearFecha(fecha);
+      });
+    }
+  }
+
+  // ============================================================
+  // SELECCIONAR FECHA DE CORRECCIÓN O PENDIENTE
+  // ============================================================
+
+  Future<void> seleccionarFechaCorreccion(
+    _FilaTorre fila,
+  ) async {
+    final String opcion = await showDialog<String>(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: const Text(
+                'Fecha de corrección',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              content: const Text(
+                'Seleccione una opción para esta torre:',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop('cancelar');
+                  },
+                  child: const Text('CANCELAR'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop('pendiente');
+                  },
+                  child: const Text(
+                    'PENDIENTE',
+                    style: TextStyle(
+                      color: Color(0xFF007A4D),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop('fecha');
+                  },
+                  icon: const Icon(
+                    Icons.calendar_month,
+                  ),
+                  label: const Text(
+                    'SELECCIONAR FECHA',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        const Color(0xFF007A4D),
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+            );
+          },
+        ) ??
+        'cancelar';
+
+    if (!mounted || opcion == 'cancelar') {
       return;
     }
 
-    // ==========================================================
-    // SELECCIONAR CALENDARIO
-    // ==========================================================
+    if (opcion == 'pendiente') {
+      setState(() {
+        fila.fechaCorreccionController.text =
+            'PENDIENTE';
+      });
+      return;
+    }
 
-    if (opcion == 'calendario') {
+    if (opcion == 'fecha') {
       DateTime fechaInicial = DateTime.now();
 
-      final textoActual = controller.text.trim();
+      final textoActual =
+          fila.fechaCorreccionController.text.trim();
 
-      if (RegExp(r'^\d{2}/\d{2}/\d{4}$').hasMatch(textoActual)) {
-        try {
-          final partes = textoActual.split('/');
+      if (textoActual.isNotEmpty &&
+          textoActual != 'PENDIENTE') {
+        final partes = textoActual.split('/');
 
-          final dia = int.parse(partes[0]);
-          final mes = int.parse(partes[1]);
-          final anio = int.parse(partes[2]);
+        if (partes.length == 3) {
+          final dia = int.tryParse(partes[0]);
+          final mes = int.tryParse(partes[1]);
+          final anio = int.tryParse(partes[2]);
 
-          fechaInicial = DateTime(
-            anio,
-            mes,
-            dia,
-          );
-        } catch (_) {
-          fechaInicial = DateTime.now();
+          if (dia != null && mes != null && anio != null) {
+            fechaInicial = DateTime(anio, mes, dia);
+          }
         }
       }
 
@@ -603,26 +588,14 @@ class _InicioScreenState extends State<InicioScreen> {
         firstDate: DateTime(2020),
         lastDate: DateTime(2100),
         locale: const Locale('es', 'MX'),
-        helpText: 'SELECCIONE LA FECHA',
-        cancelText: 'CANCELAR',
-        confirmText: 'ACEPTAR',
       );
 
       if (fecha != null) {
         setState(() {
-          controller.text = formatearFecha(fecha);
+          fila.fechaCorreccionController.text =
+              formatearFecha(fecha);
         });
       }
-    }
-
-    // ==========================================================
-    // MARCAR COMO PENDIENTE
-    // ==========================================================
-
-    if (opcion == 'pendiente') {
-      setState(() {
-        controller.text = 'PENDIENTE';
-      });
     }
   }
 
@@ -821,26 +794,23 @@ class _InicioScreenState extends State<InicioScreen> {
                       const Color(0xFF007A4D),
                   foregroundColor: Colors.white,
                 ),
-
-                // ==================================================
-                // AQUÍ SE LIMPIA EL FORMULARIO
-                // ==================================================
-
                 onPressed: () {
                   Navigator.of(context).pop();
-
-                  // Después de cerrar el mensaje,
-                  // dejamos la pantalla lista para
-                  // registrar una nueva inspección.
-                  limpiarFormulario();
                 },
-
                 child: const Text('ACEPTAR'),
               ),
             ],
           );
         },
       );
+
+      // ========================================================
+      // LIMPIAR FORMULARIO DESPUÉS DE GUARDAR
+      // ========================================================
+
+      if (!mounted) return;
+
+      limpiarFormulario();
     } catch (e) {
       if (!mounted) return;
 
@@ -910,8 +880,18 @@ class _InicioScreenState extends State<InicioScreen> {
                 foregroundColor: Colors.white,
               ),
               onPressed: () {
+                // Cerrar primero el cuadro de confirmación.
                 Navigator.of(context).pop();
-                Navigator.of(context).pop();
+
+                // Regresar al Login y eliminar las pantallas
+                // anteriores para evitar la pantalla negra.
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        const LoginScreen(),
+                  ),
+                  (route) => false,
+                );
               },
               child: const Text('CERRAR SESIÓN'),
             ),
@@ -967,6 +947,29 @@ class _InicioScreenState extends State<InicioScreen> {
           ),
         ),
         actions: [
+          // ========================================================
+          // BOTÓN PARA VER INSPECCIONES GUARDADAS
+          // ========================================================
+          IconButton(
+            tooltip: 'Inspecciones guardadas',
+            icon: const Icon(
+              Icons.folder_open,
+              size: 23,
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      const InspeccionesGuardadasScreen(),
+                ),
+              );
+            },
+          ),
+
+          // ========================================================
+          // BOTÓN PARA CERRAR SESIÓN
+          // ========================================================
           IconButton(
             tooltip: 'Cerrar sesión',
             icon: const Icon(
@@ -1625,7 +1628,7 @@ class _InicioScreenState extends State<InicioScreen> {
                   const SizedBox(height: 14),
 
                   // ==================================================
-                  // FECHA GENERAL
+                  // FECHA
                   // ==================================================
 
                   _campoFecha(),
@@ -2124,7 +2127,7 @@ class _InicioScreenState extends State<InicioScreen> {
   }
 
   // ============================================================
-  // CAMPO FECHA GENERAL
+  // CAMPO FECHA
   // ============================================================
 
   Widget _campoFecha() {
@@ -2206,7 +2209,9 @@ class _InicioScreenState extends State<InicioScreen> {
         // ======================================================
 
         _celdaFecha(
-          controller: fila.fechaRevisionController,
+          texto: fila.fechaRevisionController.text,
+          hint: 'Seleccione fecha',
+          onTap: () => seleccionarFechaRevision(fila),
         ),
 
         // ======================================================
@@ -2245,69 +2250,64 @@ class _InicioScreenState extends State<InicioScreen> {
         // ======================================================
 
         _celdaFecha(
-          controller: fila.fechaCorreccionController,
+          texto: fila.fechaCorreccionController.text,
+          hint: 'Fecha / PENDIENTE',
+          onTap: () => seleccionarFechaCorreccion(fila),
+          mostrarCalendario: true,
         ),
       ],
     );
   }
 
   // ============================================================
-  // CELDA DE FECHA CON CALENDARIO
+  // CELDA DE FECHA
   // ============================================================
 
   Widget _celdaFecha({
-    required TextEditingController controller,
+    required String texto,
+    required String hint,
+    required VoidCallback onTap,
+    bool mostrarCalendario = true,
   }) {
+    final bool tieneTexto = texto.trim().isNotEmpty;
+    final bool esPendiente = texto.trim() == 'PENDIENTE';
+
     return SizedBox(
       height: 48,
-      child: InkWell(
-        onTap: () {
-          seleccionarFechaFila(
-            controller,
-            permitirPendiente: true,
-          );
-        },
-        child: Container(
-          padding: const EdgeInsets.all(3),
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisAlignment:
-                MainAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Text(
-                  controller.text.isEmpty
-                      ? 'Seleccione'
-                      : controller.text,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 8,
-                    color: controller.text.isEmpty
-                        ? Colors.grey
-                        : controller.text ==
-                                'PENDIENTE'
-                            ? Colors.orange[800]
-                            : Colors.black,
-                    fontWeight:
-                        controller.text == 'PENDIENTE'
-                            ? FontWeight.bold
-                            : FontWeight.normal,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(3),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text(
+                    tieneTexto ? texto : hint,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 8,
+                      fontWeight: esPendiente
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: tieneTexto
+                          ? (esPendiente
+                              ? const Color(0xFF007A4D)
+                              : Colors.black)
+                          : Colors.grey,
+                    ),
                   ),
                 ),
-              ),
-
-              const SizedBox(width: 2),
-
-              Icon(
-                controller.text == 'PENDIENTE'
-                    ? Icons.pending_actions
-                    : Icons.calendar_month,
-                size: 15,
-                color: controller.text == 'PENDIENTE'
-                    ? Colors.orange[700]
-                    : const Color(0xFF007A4D),
-              ),
-            ],
+                if (mostrarCalendario)
+                  const Icon(
+                    Icons.calendar_month,
+                    size: 16,
+                    color: Color(0xFF007A4D),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
