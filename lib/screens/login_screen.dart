@@ -45,9 +45,9 @@ class _LoginScreenState extends State<LoginScreen> {
   // ==========================================================
 
   final Map<String, String> usuariosAutorizados = {
-    '9AW7P': 'Transmision1',
-    '9AW8B': 'Transmision1',
-    '9AWAA': 'Transmision1',
+    '9AW7P': '9AW7P',
+    '9AW8B': '9AW8B',
+    '9AWAA': '9AWAA',
   };
 
   // ==========================================================

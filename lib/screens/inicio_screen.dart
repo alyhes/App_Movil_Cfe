@@ -7,6 +7,13 @@ import 'login_screen.dart';
 // PANTALLA PRINCIPAL - FORMATO DE INSPECCIÓN CFE
 // ============================================================
 
+String _fechaHoyFormateada() {
+  final ahora = DateTime.now();
+  return '${ahora.day.toString().padLeft(2, '0')}/'
+      '${ahora.month.toString().padLeft(2, '0')}/'
+      '${ahora.year}';
+}
+
 class InicioScreen extends StatefulWidget {
   const InicioScreen({super.key});
 
@@ -47,7 +54,8 @@ class _FilaTorre {
 
   _FilaTorre({
     required this.torre,
-  })  : fechaRevisionController = TextEditingController(),
+  })  : fechaRevisionController =
+            TextEditingController(text: _fechaHoyFormateada()),
         anomaliaController = TextEditingController(),
         fechaCorreccionController = TextEditingController();
 
@@ -63,6 +71,12 @@ class _FilaTorre {
 // ============================================================
 
 class _InicioScreenState extends State<InicioScreen> {
+  @override
+  void initState() {
+    super.initState();
+    fechaSeleccionada = DateTime.now();
+  }
+
   // ============================================================
   // DATOS DE LÍNEAS
   // ============================================================
@@ -390,44 +404,6 @@ class _InicioScreenState extends State<InicioScreen> {
   }
 
   // ============================================================
-  // LIMPIAR TODO EL FORMULARIO DESPUÉS DE GUARDAR
-  // ============================================================
-
-  void limpiarFormulario() {
-    // Primero liberamos los controladores de las filas actuales.
-    for (final fila in filasTorres) {
-      fila.dispose();
-    }
-
-    setState(() {
-      // Datos principales
-      voltajeSeleccionado = null;
-      lineaSeleccionada = null;
-      fechaSeleccionada = null;
-      zonaSeleccionada = null;
-
-      // Buscador
-      busquedaTorre = '';
-      buscadorTorreController.clear();
-
-      // Torres seleccionadas
-      torresSeleccionadas.clear();
-      filasTorres.clear();
-
-      // Tipo de inspección
-      tipoInspeccionController.clear();
-
-      // Elaboró
-      elaboroNombreController.clear();
-      elaboroRpeController.clear();
-
-      // Vo. Bo.
-      voBoNombreController.clear();
-      voBoRpeController.clear();
-    });
-  }
-
-  // ============================================================
   // SELECCIONAR FECHA PRINCIPAL
   // ============================================================
 
@@ -457,9 +433,8 @@ class _InicioScreenState extends State<InicioScreen> {
     DateTime fechaInicial = DateTime.now();
 
     if (fila.fechaRevisionController.text.trim().isNotEmpty) {
-      final partes = fila.fechaRevisionController.text
-          .trim()
-          .split('/');
+      final partes =
+          fila.fechaRevisionController.text.trim().split('/');
 
       if (partes.length == 3) {
         final dia = int.tryParse(partes[0]);
@@ -489,114 +464,68 @@ class _InicioScreenState extends State<InicioScreen> {
   }
 
   // ============================================================
-  // SELECCIONAR FECHA DE CORRECCIÓN O PENDIENTE
+  // SELECCIONAR ESTATUS DE CORRECCIÓN
   // ============================================================
 
   Future<void> seleccionarFechaCorreccion(
     _FilaTorre fila,
   ) async {
-    final String opcion = await showDialog<String>(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: const Text(
-                'Fecha de corrección',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                ),
+    final String? opcion = await showDialog<String>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text(
+            'Estatus de corrección',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          content: const Text(
+            'Seleccione el estatus de la anomalía:',
+            style: TextStyle(fontSize: 16),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(),
+              child: const Text(
+                'CANCELAR',
+                style: TextStyle(fontSize: 14),
               ),
-              content: const Text(
-                'Seleccione una opción para esta torre:',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop('cancelar');
-                  },
-                  child: const Text('CANCELAR'),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop('pendiente');
-                  },
-                  child: const Text(
-                    'PENDIENTE',
-                    style: TextStyle(
-                      color: Color(0xFF007A4D),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop('fecha');
-                  },
-                  icon: const Icon(
-                    Icons.calendar_month,
-                  ),
-                  label: const Text(
-                    'SELECCIONAR FECHA',
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        const Color(0xFF007A4D),
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-              ],
-            );
-          },
-        ) ??
-        'cancelar';
+            ),
+            _opcionCorreccion('URGENTE', context),
+            _opcionCorreccion('PROG 7 D', context),
+            _opcionCorreccion('PROG 30 D', context),
+            _opcionCorreccion('HECHO', context),
+          ],
+        );
+      },
+    );
 
-    if (!mounted || opcion == 'cancelar') {
-      return;
-    }
+    if (!mounted || opcion == null) return;
 
-    if (opcion == 'pendiente') {
-      setState(() {
-        fila.fechaCorreccionController.text =
-            'PENDIENTE';
-      });
-      return;
-    }
+    setState(() {
+      fila.fechaCorreccionController.text = opcion;
+    });
+  }
 
-    if (opcion == 'fecha') {
-      DateTime fechaInicial = DateTime.now();
-
-      final textoActual =
-          fila.fechaCorreccionController.text.trim();
-
-      if (textoActual.isNotEmpty &&
-          textoActual != 'PENDIENTE') {
-        final partes = textoActual.split('/');
-
-        if (partes.length == 3) {
-          final dia = int.tryParse(partes[0]);
-          final mes = int.tryParse(partes[1]);
-          final anio = int.tryParse(partes[2]);
-
-          if (dia != null && mes != null && anio != null) {
-            fechaInicial = DateTime(anio, mes, dia);
-          }
-        }
-      }
-
-      final DateTime? fecha = await showDatePicker(
-        context: context,
-        initialDate: fechaInicial,
-        firstDate: DateTime(2020),
-        lastDate: DateTime(2100),
-        locale: const Locale('es', 'MX'),
-      );
-
-      if (fecha != null) {
-        setState(() {
-          fila.fechaCorreccionController.text =
-              formatearFecha(fecha);
-        });
-      }
-    }
+  TextButton _opcionCorreccion(
+    String texto,
+    BuildContext dialogContext,
+  ) {
+    return TextButton(
+      onPressed: () =>
+          Navigator.of(dialogContext).pop(texto),
+      child: Text(
+        texto,
+        style: const TextStyle(
+          fontSize: 15,
+          color: Color(0xFF007A4D),
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
   }
 
   // ============================================================
@@ -614,10 +543,6 @@ class _InicioScreenState extends State<InicioScreen> {
   // ============================================================
 
   Future<void> guardarInspeccion() async {
-    // ==========================================================
-    // VALIDACIONES
-    // ==========================================================
-
     if (voltajeSeleccionado == null) {
       _mostrarMensaje(
         'Seleccione el voltaje.',
@@ -687,40 +612,26 @@ class _InicioScreenState extends State<InicioScreen> {
     });
 
     try {
-      // ========================================================
-      // INFORMACIÓN GENERAL
-      // ========================================================
-
       final inspeccion = <String, dynamic>{
         'fecha_inspeccion':
             formatearFecha(fechaSeleccionada!),
-
         'linea_transmision':
             '$voltajeSeleccionado - ${lineaSeleccionada!.nombreCompleto}',
-
         'zona_transmision':
             zonaSeleccionada!,
-
         'tipo_inspeccion':
             tipoInspeccionController.text.trim(),
-
         'elaboro':
             '${elaboroNombreController.text.trim()} '
             '(RPE: ${elaboroRpeController.text.trim()})',
-
         'visto_bueno':
             voBoNombreController.text.trim().isEmpty &&
                     voBoRpeController.text.trim().isEmpty
                 ? null
                 : '${voBoNombreController.text.trim()} '
                     '(RPE: ${voBoRpeController.text.trim()})',
-
         'sincronizado': 0,
       };
-
-      // ========================================================
-      // DATOS DE CADA TORRE
-      // ========================================================
 
       final List<Map<String, dynamic>> anomalias = [];
 
@@ -728,21 +639,14 @@ class _InicioScreenState extends State<InicioScreen> {
         anomalias.add({
           'fecha_revision':
               fila.fechaRevisionController.text.trim(),
-
           'numero_estacion':
               fila.torre,
-
           'anomalia':
               fila.anomaliaController.text.trim(),
-
           'fecha_correccion':
               fila.fechaCorreccionController.text.trim(),
         });
       }
-
-      // ========================================================
-      // GUARDAR TODO EN UNA SOLA TRANSACCIÓN
-      // ========================================================
 
       final int id =
           await DatabaseHelper.instance.guardarInspeccionCompleta(
@@ -755,10 +659,6 @@ class _InicioScreenState extends State<InicioScreen> {
       setState(() {
         guardando = false;
       });
-
-      // ========================================================
-      // MENSAJE DE ÉXITO
-      // ========================================================
 
       await showDialog(
         context: context,
@@ -774,7 +674,7 @@ class _InicioScreenState extends State<InicioScreen> {
                 Text(
                   'Inspección guardada',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -786,6 +686,7 @@ class _InicioScreenState extends State<InicioScreen> {
               'Número de registro: $id\n'
               'Línea: ${lineaSeleccionada!.nombreCompleto}\n'
               'Torres guardadas: ${torresSeleccionadas.length}',
+              style: const TextStyle(fontSize: 16),
             ),
             actions: [
               ElevatedButton(
@@ -797,19 +698,17 @@ class _InicioScreenState extends State<InicioScreen> {
                 onPressed: () {
                   Navigator.of(context).pop();
                 },
-                child: const Text('ACEPTAR'),
+                child: const Text(
+                  'ACEPTAR',
+                  style: TextStyle(fontSize: 14),
+                ),
               ),
             ],
           );
         },
       );
 
-      // ========================================================
-      // LIMPIAR FORMULARIO DESPUÉS DE GUARDAR
-      // ========================================================
-
       if (!mounted) return;
-
       limpiarFormulario();
     } catch (e) {
       if (!mounted) return;
@@ -826,6 +725,36 @@ class _InicioScreenState extends State<InicioScreen> {
   }
 
   // ============================================================
+  // LIMPIAR TODO EL FORMULARIO DESPUÉS DE GUARDAR
+  // ============================================================
+
+  void limpiarFormulario() {
+    for (final fila in filasTorres) {
+      fila.dispose();
+    }
+
+    setState(() {
+      voltajeSeleccionado = null;
+      lineaSeleccionada = null;
+      zonaSeleccionada = null;
+
+      fechaSeleccionada = DateTime.now();
+
+      busquedaTorre = '';
+      buscadorTorreController.clear();
+
+      torresSeleccionadas.clear();
+      filasTorres.clear();
+
+      tipoInspeccionController.clear();
+      elaboroNombreController.clear();
+      elaboroRpeController.clear();
+      voBoNombreController.clear();
+      voBoRpeController.clear();
+    });
+  }
+
+  // ============================================================
   // MOSTRAR MENSAJE
   // ============================================================
 
@@ -835,7 +764,10 @@ class _InicioScreenState extends State<InicioScreen> {
   }) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(mensaje),
+        content: Text(
+          mensaje,
+          style: const TextStyle(fontSize: 14),
+        ),
         backgroundColor:
             esError ? Colors.red : const Color(0xFF007A4D),
         duration: const Duration(seconds: 3),
@@ -843,64 +775,66 @@ class _InicioScreenState extends State<InicioScreen> {
     );
   }
 
-  // ============================================================
-  // CERRAR SESIÓN
-  // ============================================================
+ // ============================================================
+// CERRAR SESIÓN
+// ============================================================
 
-  void cerrarSesion() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'Cerrar sesión',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
+void cerrarSesion() {
+  showDialog(
+    context: context,
+    builder: (dialogContext) {
+      return AlertDialog(
+        title: const Text(
+          'Cerrar sesión',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: const Text(
+          '¿Estás seguro de que deseas cerrar sesión?',
+          style: TextStyle(fontSize: 16),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(dialogContext).pop();
+            },
+            child: const Text(
+              'CANCELAR',
+              style: TextStyle(fontSize: 14),
             ),
           ),
-          content: const Text(
-            '¿Estás seguro de que deseas cerrar sesión?',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text(
-                'CANCELAR',
-                style: TextStyle(
-                  color: Colors.grey,
+
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF007A4D),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              // Cerrar primero el cuadro de confirmación
+              Navigator.of(dialogContext).pop();
+
+              // Regresar al Login y eliminar las pantallas
+              // anteriores para que no se pueda volver atrás.
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const LoginScreen(),
                 ),
-              ),
+                (route) => false,
+              );
+            },
+            child: const Text(
+              'CERRAR SESIÓN',
+              style: TextStyle(fontSize: 14),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    const Color(0xFF007A4D),
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () {
-                // Cerrar primero el cuadro de confirmación.
-                Navigator.of(context).pop();
-
-                // Regresar al Login y eliminar las pantallas
-                // anteriores para evitar la pantalla negra.
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        const LoginScreen(),
-                  ),
-                  (route) => false,
-                );
-              },
-              child: const Text('CERRAR SESIÓN'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
+          ),
+        ],
+      );
+    },
+  );
+}
   // ============================================================
   // DISPOSE
   // ============================================================
@@ -943,18 +877,15 @@ class _InicioScreenState extends State<InicioScreen> {
           'Inspecciones CFE',
           style: TextStyle(
             fontWeight: FontWeight.bold,
-            fontSize: 19,
+            fontSize: 21,
           ),
         ),
         actions: [
-          // ========================================================
-          // BOTÓN PARA VER INSPECCIONES GUARDADAS
-          // ========================================================
           IconButton(
             tooltip: 'Inspecciones guardadas',
             icon: const Icon(
               Icons.folder_open,
-              size: 23,
+              size: 24,
             ),
             onPressed: () {
               Navigator.push(
@@ -966,15 +897,11 @@ class _InicioScreenState extends State<InicioScreen> {
               );
             },
           ),
-
-          // ========================================================
-          // BOTÓN PARA CERRAR SESIÓN
-          // ========================================================
           IconButton(
             tooltip: 'Cerrar sesión',
             icon: const Icon(
               Icons.logout,
-              size: 23,
+              size: 24,
             ),
             onPressed: cerrarSesion,
           ),
@@ -988,7 +915,8 @@ class _InicioScreenState extends State<InicioScreen> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(12),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment:
+              CrossAxisAlignment.stretch,
           children: [
             // ==================================================
             // ENCABEZADO CFE
@@ -1011,7 +939,7 @@ class _InicioScreenState extends State<InicioScreen> {
                     'COMISIÓN FEDERAL DE ELECTRICIDAD',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -1020,7 +948,7 @@ class _InicioScreenState extends State<InicioScreen> {
                     'DIRECCIÓN DE OPERACIÓN',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -1029,7 +957,7 @@ class _InicioScreenState extends State<InicioScreen> {
                     'GERENCIA REGIONAL DE TRANSMISIÓN PENINSULAR',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -1043,7 +971,7 @@ class _InicioScreenState extends State<InicioScreen> {
                     'INSPECCIÓN DE LÍNEAS DE TRANSMISIÓN',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 16,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -1071,22 +999,22 @@ class _InicioScreenState extends State<InicioScreen> {
                 children: const [
                   Text(
                     'Hoja: 1 de 1',
-                    style: TextStyle(fontSize: 11),
+                    style: TextStyle(fontSize: 14),
                   ),
                   SizedBox(height: 4),
                   Text(
                     'CLAVE: P-T150-LT01-R-05',
-                    style: TextStyle(fontSize: 11),
+                    style: TextStyle(fontSize: 14),
                   ),
                   SizedBox(height: 4),
                   Text(
                     'REVISIÓN: 1',
-                    style: TextStyle(fontSize: 11),
+                    style: TextStyle(fontSize: 14),
                   ),
                   SizedBox(height: 4),
                   Text(
                     'FECHA DE ELABORACIÓN: 29.01.2021',
-                    style: TextStyle(fontSize: 11),
+                    style: TextStyle(fontSize: 14),
                   ),
                 ],
               ),
@@ -1113,7 +1041,7 @@ class _InicioScreenState extends State<InicioScreen> {
                 'TRABAJOS PENDIENTES EN LA LÍNEA DE TRANSMISIÓN',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: 16,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -1140,36 +1068,36 @@ class _InicioScreenState extends State<InicioScreen> {
                   const Text(
                     'LÍNEA DE TRANSMISIÓN:',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
 
                   const SizedBox(height: 8),
 
-                  // ==================================================
                   // VOLTAJE
-                  // ==================================================
-
                   DropdownButtonFormField<String>(
                     initialValue: voltajeSeleccionado,
                     decoration: InputDecoration(
-                      labelText: 'Seleccione el voltaje',
+                      labelText:
+                          'Seleccione el voltaje',
                       labelStyle:
-                          const TextStyle(fontSize: 11),
+                          const TextStyle(fontSize: 14),
                       prefixIcon: const Icon(
                         Icons.bolt,
                         color: Color(0xFF007A4D),
-                        size: 20,
+                        size: 22,
                       ),
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
                       ),
-                      focusedBorder: OutlineInputBorder(
+                      focusedBorder:
+                          OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
-                        borderSide: const BorderSide(
+                        borderSide:
+                            const BorderSide(
                           color: Color(0xFF007A4D),
                           width: 2,
                         ),
@@ -1177,17 +1105,22 @@ class _InicioScreenState extends State<InicioScreen> {
                       contentPadding:
                           const EdgeInsets.symmetric(
                         horizontal: 10,
-                        vertical: 4,
+                        vertical: 6,
                       ),
                     ),
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 14,
                       color: Colors.black,
                     ),
                     items: voltajes.map((voltaje) {
                       return DropdownMenuItem<String>(
                         value: voltaje,
-                        child: Text(voltaje),
+                        child: Text(
+                          voltaje,
+                          style: const TextStyle(
+                            fontSize: 14,
+                          ),
+                        ),
                       );
                     }).toList(),
                     onChanged: (valor) {
@@ -1202,34 +1135,35 @@ class _InicioScreenState extends State<InicioScreen> {
                     },
                   ),
 
-                  // ==================================================
-                  // LÍNEA
-                  // ==================================================
-
                   if (voltajeSeleccionado != null) ...[
                     const SizedBox(height: 10),
 
                     Text(
                       'LÍNEA $voltajeSeleccionado:',
                       style: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
 
                     const SizedBox(height: 6),
 
-                    DropdownButtonFormField<_LineaTransmision>(
+                    DropdownButtonFormField<
+                        _LineaTransmision>(
                       initialValue: lineaSeleccionada,
                       isExpanded: true,
                       decoration: InputDecoration(
-                        labelText: 'Seleccione la línea',
+                        labelText:
+                            'Seleccione la línea',
                         labelStyle:
-                            const TextStyle(fontSize: 11),
+                            const TextStyle(
+                          fontSize: 14,
+                        ),
                         prefixIcon: const Icon(
                           Icons.electrical_services,
-                          color: Color(0xFF007A4D),
-                          size: 20,
+                          color:
+                              Color(0xFF007A4D),
+                          size: 22,
                         ),
                         border: OutlineInputBorder(
                           borderRadius:
@@ -1241,56 +1175,64 @@ class _InicioScreenState extends State<InicioScreen> {
                               BorderRadius.circular(5),
                           borderSide:
                               const BorderSide(
-                            color: Color(0xFF007A4D),
+                            color:
+                                Color(0xFF007A4D),
                             width: 2,
                           ),
                         ),
                         contentPadding:
                             const EdgeInsets.symmetric(
                           horizontal: 10,
-                          vertical: 4,
+                          vertical: 6,
                         ),
                       ),
                       style: const TextStyle(
-                        fontSize: 12,
+                        fontSize: 14,
                         color: Colors.black,
                       ),
-                      items: obtenerLineas().map((linea) {
+                      items: obtenerLineas()
+                          .map((linea) {
                         return DropdownMenuItem<
                             _LineaTransmision>(
                           value: linea,
                           child: Text(
                             linea.nombreCompleto,
-                            overflow: TextOverflow.ellipsis,
+                            overflow:
+                                TextOverflow.ellipsis,
+                            style:
+                                const TextStyle(
+                              fontSize: 14,
+                            ),
                           ),
                         );
                       }).toList(),
                       onChanged: (valor) {
                         setState(() {
                           lineaSeleccionada = valor;
-                          torresSeleccionadas.clear();
+                          torresSeleccionadas
+                              .clear();
                           busquedaTorre = '';
-                          buscadorTorreController.clear();
+                          buscadorTorreController
+                              .clear();
                           actualizarFilasTorres();
                         });
                       },
                     ),
                   ],
 
-                  // ==================================================
-                  // INFORMACIÓN DEL RANGO DE TORRES
-                  // ==================================================
-
                   if (lineaSeleccionada != null) ...[
                     const SizedBox(height: 10),
 
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(10),
+                      padding:
+                          const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFE8F5E9),
+                        color:
+                            const Color(0xFFE8F5E9),
                         border: Border.all(
-                          color: const Color(0xFF007A4D),
+                          color:
+                              const Color(0xFF007A4D),
                         ),
                         borderRadius:
                             BorderRadius.circular(5),
@@ -1299,8 +1241,9 @@ class _InicioScreenState extends State<InicioScreen> {
                         children: [
                           const Icon(
                             Icons.account_tree,
-                            color: Color(0xFF007A4D),
-                            size: 21,
+                            color:
+                                Color(0xFF007A4D),
+                            size: 23,
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -1311,9 +1254,11 @@ class _InicioScreenState extends State<InicioScreen> {
                               'a '
                               'T-${lineaSeleccionada!.torreFinal.toString().padLeft(3, '0')}',
                               style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF007A4D),
+                                fontSize: 14,
+                                fontWeight:
+                                    FontWeight.bold,
+                                color:
+                                    Color(0xFF007A4D),
                               ),
                             ),
                           ),
@@ -1322,26 +1267,19 @@ class _InicioScreenState extends State<InicioScreen> {
                     ),
                   ],
 
-                  // ==================================================
-                  // TORRES
-                  // ==================================================
-
                   if (lineaSeleccionada != null) ...[
                     const SizedBox(height: 14),
 
                     const Text(
                       'TORRES A INSPECCIONAR:',
                       style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        fontWeight:
+                            FontWeight.bold,
                       ),
                     ),
 
                     const SizedBox(height: 6),
-
-                    // ==================================================
-                    // BUSCADOR
-                    // ==================================================
 
                     TextField(
                       controller:
@@ -1349,28 +1287,33 @@ class _InicioScreenState extends State<InicioScreen> {
                       decoration: InputDecoration(
                         hintText:
                             'Buscar número de torre...',
-                        hintStyle: const TextStyle(
-                          fontSize: 11,
+                        hintStyle:
+                            const TextStyle(
+                          fontSize: 14,
                           color: Colors.grey,
                         ),
                         prefixIcon: const Icon(
                           Icons.search,
-                          color: Color(0xFF007A4D),
-                          size: 20,
+                          color:
+                              Color(0xFF007A4D),
+                          size: 22,
                         ),
                         suffixIcon:
-                            buscadorTorreController.text
+                            buscadorTorreController
+                                    .text
                                     .isNotEmpty
                                 ? IconButton(
-                                    icon: const Icon(
+                                    icon:
+                                        const Icon(
                                       Icons.clear,
-                                      size: 18,
+                                      size: 20,
                                     ),
                                     onPressed: () {
                                       setState(() {
                                         buscadorTorreController
                                             .clear();
-                                        busquedaTorre = '';
+                                        busquedaTorre =
+                                            '';
                                       });
                                     },
                                   )
@@ -1385,17 +1328,20 @@ class _InicioScreenState extends State<InicioScreen> {
                               BorderRadius.circular(5),
                           borderSide:
                               const BorderSide(
-                            color: Color(0xFF007A4D),
+                            color:
+                                Color(0xFF007A4D),
                             width: 2,
                           ),
                         ),
                         contentPadding:
                             const EdgeInsets.symmetric(
                           horizontal: 10,
-                          vertical: 4,
+                          vertical: 6,
                         ),
                       ),
-                      style: const TextStyle(fontSize: 12),
+                      style: const TextStyle(
+                        fontSize: 14,
+                      ),
                       onChanged: (valor) {
                         setState(() {
                           busquedaTorre = valor;
@@ -1405,10 +1351,6 @@ class _InicioScreenState extends State<InicioScreen> {
 
                     const SizedBox(height: 8),
 
-                    // ==================================================
-                    // CONTADOR
-                    // ==================================================
-
                     Container(
                       width: double.infinity,
                       padding:
@@ -1417,17 +1359,22 @@ class _InicioScreenState extends State<InicioScreen> {
                         vertical: 8,
                       ),
                       decoration: BoxDecoration(
-                        color: torresSeleccionadas
-                                .isNotEmpty
-                            ? const Color(0xFFE8F5E9)
-                            : const Color(0xFFF2F2F2),
+                        color:
+                            torresSeleccionadas
+                                    .isNotEmpty
+                                ? const Color(
+                                    0xFFE8F5E9)
+                                : const Color(
+                                    0xFFF2F2F2),
                         borderRadius:
                             BorderRadius.circular(5),
                         border: Border.all(
-                          color: torresSeleccionadas
-                                  .isNotEmpty
-                              ? const Color(0xFF007A4D)
-                              : Colors.grey,
+                          color:
+                              torresSeleccionadas
+                                      .isNotEmpty
+                                  ? const Color(
+                                      0xFF007A4D)
+                                  : Colors.grey,
                         ),
                       ),
                       child: Row(
@@ -1437,11 +1384,12 @@ class _InicioScreenState extends State<InicioScreen> {
                                     .isNotEmpty
                                 ? Icons.check_circle
                                 : Icons.info_outline,
-                            size: 19,
+                            size: 21,
                             color:
                                 torresSeleccionadas
                                         .isNotEmpty
-                                    ? const Color(0xFF007A4D)
+                                    ? const Color(
+                                        0xFF007A4D)
                                     : Colors.grey,
                           ),
                           const SizedBox(width: 7),
@@ -1449,7 +1397,7 @@ class _InicioScreenState extends State<InicioScreen> {
                             child: Text(
                               '${torresSeleccionadas.length} TORRES SELECCIONADAS',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 14,
                                 fontWeight:
                                     FontWeight.bold,
                                 color:
@@ -1457,7 +1405,8 @@ class _InicioScreenState extends State<InicioScreen> {
                                             .isNotEmpty
                                         ? const Color(
                                             0xFF007A4D)
-                                        : Colors.grey[700],
+                                        : Colors.grey[
+                                            700],
                               ),
                             ),
                           ),
@@ -1469,7 +1418,7 @@ class _InicioScreenState extends State<InicioScreen> {
                               child: const Text(
                                 'LIMPIAR',
                                 style: TextStyle(
-                                  fontSize: 9,
+                                  fontSize: 13,
                                   fontWeight:
                                       FontWeight.bold,
                                 ),
@@ -1480,10 +1429,6 @@ class _InicioScreenState extends State<InicioScreen> {
                     ),
 
                     const SizedBox(height: 8),
-
-                    // ==================================================
-                    // LISTA DE TORRES
-                    // ==================================================
 
                     if (obtenerTorres().isNotEmpty)
                       Container(
@@ -1504,47 +1449,42 @@ class _InicioScreenState extends State<InicioScreen> {
                             final torres =
                                 obtenerTorresFiltradas();
 
-                            final torre = torres[index];
+                            final torre =
+                                torres[index];
 
                             final seleccionada =
                                 torresSeleccionadas
                                     .contains(torre);
 
                             return CheckboxListTile(
-                              dense: true,
-                              visualDensity:
-                                  const VisualDensity(
-                                vertical: -2,
-                              ),
+                              dense: false,
                               title: Text(
                                 torre,
-                                style: const TextStyle(
-                                  fontSize: 12,
+                                style:
+                                    const TextStyle(
+                                  fontSize: 14,
                                   fontWeight:
                                       FontWeight.w500,
                                 ),
                               ),
                               value: seleccionada,
                               activeColor:
-                                  const Color(0xFF007A4D),
+                                  const Color(
+                                      0xFF007A4D),
                               controlAffinity:
                                   ListTileControlAffinity
                                       .leading,
                               onChanged: (valor) {
                                 cambiarSeleccionTorre(
-                                  torre,
-                                );
+                                    torre);
                               },
                             );
                           },
                         ),
                       ),
 
-                    // ==================================================
-                    // SIN RESULTADOS
-                    // ==================================================
-
-                    if (obtenerTorresFiltradas().isEmpty)
+                    if (obtenerTorresFiltradas()
+                        .isEmpty)
                       Container(
                         width: double.infinity,
                         padding:
@@ -1558,17 +1498,14 @@ class _InicioScreenState extends State<InicioScreen> {
                         ),
                         child: const Text(
                           'No se encontraron torres.',
-                          textAlign: TextAlign.center,
+                          textAlign:
+                              TextAlign.center,
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: 14,
                             color: Colors.grey,
                           ),
                         ),
                       ),
-
-                    // ==================================================
-                    // TORRES SELECCIONADAS
-                    // ==================================================
 
                     if (torresSeleccionadas
                         .isNotEmpty) ...[
@@ -1577,8 +1514,9 @@ class _InicioScreenState extends State<InicioScreen> {
                       const Text(
                         'TORRES SELECCIONADAS:',
                         style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          fontWeight:
+                              FontWeight.bold,
                         ),
                       ),
 
@@ -1599,7 +1537,7 @@ class _InicioScreenState extends State<InicioScreen> {
                               torre,
                               style:
                                   const TextStyle(
-                                fontSize: 10,
+                                fontSize: 13,
                                 color: Color(
                                   0xFF007A4D,
                                 ),
@@ -1610,14 +1548,13 @@ class _InicioScreenState extends State<InicioScreen> {
                             deleteIcon:
                                 const Icon(
                               Icons.close,
-                              size: 15,
+                              size: 18,
                               color:
                                   Color(0xFF007A4D),
                             ),
                             onDeleted: () {
                               cambiarSeleccionTorre(
-                                torre,
-                              );
+                                  torre);
                             },
                           );
                         }).toList(),
@@ -1635,15 +1572,12 @@ class _InicioScreenState extends State<InicioScreen> {
 
                   const SizedBox(height: 14),
 
-                  // ==================================================
-                  // TIPO DE INSPECCIÓN
-                  // ==================================================
-
                   const Text(
                     'TIPO DE INSPECCIÓN:',
                     style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
@@ -1657,23 +1591,27 @@ class _InicioScreenState extends State<InicioScreen> {
                       hintText:
                           'Escriba el tipo de inspección...',
                       hintStyle: const TextStyle(
-                        fontSize: 11,
+                        fontSize: 14,
                         color: Colors.grey,
                       ),
                       prefixIcon: const Icon(
                         Icons.assignment_outlined,
-                        color: Color(0xFF007A4D),
-                        size: 20,
+                        color:
+                            Color(0xFF007A4D),
+                        size: 22,
                       ),
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
                       ),
-                      focusedBorder: OutlineInputBorder(
+                      focusedBorder:
+                          OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF007A4D),
+                        borderSide:
+                            const BorderSide(
+                          color:
+                              Color(0xFF007A4D),
                           width: 2,
                         ),
                       ),
@@ -1681,22 +1619,19 @@ class _InicioScreenState extends State<InicioScreen> {
                           const EdgeInsets.all(10),
                     ),
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 14,
                       color: Colors.black,
                     ),
                   ),
 
                   const SizedBox(height: 14),
 
-                  // ==================================================
-                  // ZONA
-                  // ==================================================
-
                   const Text(
                     'ZONA DE TRANSMISIÓN:',
                     style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
@@ -1705,41 +1640,54 @@ class _InicioScreenState extends State<InicioScreen> {
                   DropdownButtonFormField<String>(
                     initialValue: zonaSeleccionada,
                     decoration: InputDecoration(
-                      labelText: 'Seleccione la zona',
+                      labelText:
+                          'Seleccione la zona',
                       labelStyle:
-                          const TextStyle(fontSize: 11),
+                          const TextStyle(
+                        fontSize: 14,
+                      ),
                       prefixIcon: const Icon(
                         Icons.location_on_outlined,
-                        color: Color(0xFF007A4D),
-                        size: 20,
+                        color:
+                            Color(0xFF007A4D),
+                        size: 22,
                       ),
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
                       ),
-                      focusedBorder: OutlineInputBorder(
+                      focusedBorder:
+                          OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF007A4D),
+                        borderSide:
+                            const BorderSide(
+                          color:
+                              Color(0xFF007A4D),
                           width: 2,
                         ),
                       ),
                       contentPadding:
                           const EdgeInsets.symmetric(
                         horizontal: 10,
-                        vertical: 4,
+                        vertical: 6,
                       ),
                     ),
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 14,
                       color: Colors.black,
                     ),
-                    items:
-                        zonasTransmision.map((zona) {
+                    items: zonasTransmision
+                        .map((zona) {
                       return DropdownMenuItem<String>(
                         value: zona,
-                        child: Text(zona),
+                        child: Text(
+                          zona,
+                          style:
+                              const TextStyle(
+                            fontSize: 14,
+                          ),
+                        ),
                       );
                     }).toList(),
                     onChanged: (valor) {
@@ -1767,10 +1715,6 @@ class _InicioScreenState extends State<InicioScreen> {
               ),
               child: Column(
                 children: [
-                  // ==================================================
-                  // ENCABEZADO
-                  // ==================================================
-
                   Table(
                     border: TableBorder.all(
                       color: Colors.black,
@@ -1805,10 +1749,6 @@ class _InicioScreenState extends State<InicioScreen> {
                     ],
                   ),
 
-                  // ==================================================
-                  // FILAS SEGÚN TORRES SELECCIONADAS
-                  // ==================================================
-
                   if (filasTorres.isEmpty)
                     Container(
                       width: double.infinity,
@@ -1817,9 +1757,10 @@ class _InicioScreenState extends State<InicioScreen> {
                       child: const Text(
                         'Seleccione una o más torres para '
                         'mostrar las filas de inspección.',
-                        textAlign: TextAlign.center,
+                        textAlign:
+                            TextAlign.center,
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: 13,
                           color: Colors.grey,
                         ),
                       ),
@@ -1867,8 +1808,9 @@ class _InicioScreenState extends State<InicioScreen> {
                   const Text(
                     'ELABORÓ:',
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
@@ -1882,36 +1824,43 @@ class _InicioScreenState extends State<InicioScreen> {
                       hintText:
                           'Escriba el nombre completo',
                       labelStyle:
-                          const TextStyle(fontSize: 11),
-                      hintStyle: const TextStyle(
-                        fontSize: 10,
+                          const TextStyle(
+                        fontSize: 14,
+                      ),
+                      hintStyle:
+                          const TextStyle(
+                        fontSize: 13,
                         color: Colors.grey,
                       ),
                       prefixIcon: const Icon(
                         Icons.person_outline,
-                        color: Color(0xFF007A4D),
-                        size: 20,
+                        color:
+                            Color(0xFF007A4D),
+                        size: 22,
                       ),
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
                       ),
-                      focusedBorder: OutlineInputBorder(
+                      focusedBorder:
+                          OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF007A4D),
+                        borderSide:
+                            const BorderSide(
+                          color:
+                              Color(0xFF007A4D),
                           width: 2,
                         ),
                       ),
                       contentPadding:
                           const EdgeInsets.symmetric(
                         horizontal: 10,
-                        vertical: 4,
+                        vertical: 6,
                       ),
                     ),
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 14,
                     ),
                   ),
 
@@ -1924,36 +1873,43 @@ class _InicioScreenState extends State<InicioScreen> {
                       labelText: 'RPE',
                       hintText: 'Escriba el RPE',
                       labelStyle:
-                          const TextStyle(fontSize: 11),
-                      hintStyle: const TextStyle(
-                        fontSize: 10,
+                          const TextStyle(
+                        fontSize: 14,
+                      ),
+                      hintStyle:
+                          const TextStyle(
+                        fontSize: 13,
                         color: Colors.grey,
                       ),
                       prefixIcon: const Icon(
                         Icons.badge_outlined,
-                        color: Color(0xFF007A4D),
-                        size: 20,
+                        color:
+                            Color(0xFF007A4D),
+                        size: 22,
                       ),
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
                       ),
-                      focusedBorder: OutlineInputBorder(
+                      focusedBorder:
+                          OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF007A4D),
+                        borderSide:
+                            const BorderSide(
+                          color:
+                              Color(0xFF007A4D),
                           width: 2,
                         ),
                       ),
                       contentPadding:
                           const EdgeInsets.symmetric(
                         horizontal: 10,
-                        vertical: 4,
+                        vertical: 6,
                       ),
                     ),
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 14,
                     ),
                   ),
 
@@ -1962,8 +1918,9 @@ class _InicioScreenState extends State<InicioScreen> {
                   const Text(
                     'Vo. Bo.',
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      fontWeight:
+                          FontWeight.bold,
                     ),
                   ),
 
@@ -1977,36 +1934,43 @@ class _InicioScreenState extends State<InicioScreen> {
                       hintText:
                           'Escriba el nombre completo',
                       labelStyle:
-                          const TextStyle(fontSize: 11),
-                      hintStyle: const TextStyle(
-                        fontSize: 10,
+                          const TextStyle(
+                        fontSize: 14,
+                      ),
+                      hintStyle:
+                          const TextStyle(
+                        fontSize: 13,
                         color: Colors.grey,
                       ),
                       prefixIcon: const Icon(
                         Icons.person_outline,
-                        color: Color(0xFF007A4D),
-                        size: 20,
+                        color:
+                            Color(0xFF007A4D),
+                        size: 22,
                       ),
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
                       ),
-                      focusedBorder: OutlineInputBorder(
+                      focusedBorder:
+                          OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF007A4D),
+                        borderSide:
+                            const BorderSide(
+                          color:
+                              Color(0xFF007A4D),
                           width: 2,
                         ),
                       ),
                       contentPadding:
                           const EdgeInsets.symmetric(
                         horizontal: 10,
-                        vertical: 4,
+                        vertical: 6,
                       ),
                     ),
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 14,
                     ),
                   ),
 
@@ -2019,36 +1983,43 @@ class _InicioScreenState extends State<InicioScreen> {
                       labelText: 'RPE',
                       hintText: 'Escriba el RPE',
                       labelStyle:
-                          const TextStyle(fontSize: 11),
-                      hintStyle: const TextStyle(
-                        fontSize: 10,
+                          const TextStyle(
+                        fontSize: 14,
+                      ),
+                      hintStyle:
+                          const TextStyle(
+                        fontSize: 13,
                         color: Colors.grey,
                       ),
                       prefixIcon: const Icon(
                         Icons.badge_outlined,
-                        color: Color(0xFF007A4D),
-                        size: 20,
+                        color:
+                            Color(0xFF007A4D),
+                        size: 22,
                       ),
                       border: OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
                       ),
-                      focusedBorder: OutlineInputBorder(
+                      focusedBorder:
+                          OutlineInputBorder(
                         borderRadius:
                             BorderRadius.circular(5),
-                        borderSide: const BorderSide(
-                          color: Color(0xFF007A4D),
+                        borderSide:
+                            const BorderSide(
+                          color:
+                              Color(0xFF007A4D),
                           width: 2,
                         ),
                       ),
                       contentPadding:
                           const EdgeInsets.symmetric(
                         horizontal: 10,
-                        vertical: 4,
+                        vertical: 6,
                       ),
                     ),
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 14,
                     ),
                   ),
                 ],
@@ -2062,14 +2033,16 @@ class _InicioScreenState extends State<InicioScreen> {
             // ========================================================
 
             SizedBox(
-              height: 52,
+              height: 54,
               child: ElevatedButton.icon(
                 onPressed:
-                    guardando ? null : guardarInspeccion,
+                    guardando
+                        ? null
+                        : guardarInspeccion,
                 icon: guardando
                     ? const SizedBox(
-                        width: 20,
-                        height: 20,
+                        width: 21,
+                        height: 21,
                         child:
                             CircularProgressIndicator(
                           strokeWidth: 2.5,
@@ -2078,15 +2051,16 @@ class _InicioScreenState extends State<InicioScreen> {
                       )
                     : const Icon(
                         Icons.save,
-                        size: 22,
+                        size: 23,
                       ),
                 label: Text(
                   guardando
                       ? 'GUARDANDO...'
                       : 'GUARDAR INSPECCIÓN',
                   style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                    fontWeight:
+                        FontWeight.bold,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
@@ -2095,7 +2069,8 @@ class _InicioScreenState extends State<InicioScreen> {
                   foregroundColor: Colors.white,
                   disabledBackgroundColor:
                       Colors.grey,
-                  shape: RoundedRectangleBorder(
+                  shape:
+                      RoundedRectangleBorder(
                     borderRadius:
                         BorderRadius.circular(6),
                   ),
@@ -2105,15 +2080,11 @@ class _InicioScreenState extends State<InicioScreen> {
 
             const SizedBox(height: 15),
 
-            // ========================================================
-            // PIE
-            // ========================================================
-
             const Center(
               child: Text(
                 'Sistema de Inspecciones CFE',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 12,
                   color: Colors.grey,
                 ),
               ),
@@ -2131,66 +2102,46 @@ class _InicioScreenState extends State<InicioScreen> {
   // ============================================================
 
   Widget _campoFecha() {
-    return InkWell(
-      onTap: seleccionarFecha,
-      borderRadius: BorderRadius.circular(5),
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          vertical: 4,
-        ),
-        child: Row(
-          crossAxisAlignment:
-              CrossAxisAlignment.end,
-          children: [
-            const Text(
-              'FECHA:',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
+    return Container(
+      padding:
+          const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment:
+            CrossAxisAlignment.end,
+        children: [
+          const Text(
+            'FECHA:',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
             ),
-
-            const SizedBox(width: 5),
-
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.only(
-                  bottom: 2,
-                ),
-                decoration:
-                    const BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: Colors.black,
-                      width: 1,
-                    ),
-                  ),
-                ),
-                child: Text(
-                  fechaSeleccionada == null
-                      ? 'Seleccione una fecha'
-                      : formatearFecha(
-                          fechaSeleccionada!,
-                        ),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: fechaSeleccionada == null
-                        ? Colors.grey
-                        : Colors.black,
+          ),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Container(
+              padding:
+                  const EdgeInsets.only(bottom: 2),
+              decoration:
+                  const BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: Colors.black,
+                    width: 1,
                   ),
                 ),
               ),
+              child: Text(
+                formatearFecha(
+                    fechaSeleccionada ??
+                        DateTime.now()),
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.black,
+                ),
+              ),
             ),
-
-            const SizedBox(width: 5),
-
-            const Icon(
-              Icons.calendar_month,
-              size: 19,
-              color: Color(0xFF007A4D),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -2204,38 +2155,29 @@ class _InicioScreenState extends State<InicioScreen> {
   ) {
     return TableRow(
       children: [
-        // ======================================================
-        // FECHA DE REVISIÓN
-        // ======================================================
-
         _celdaFecha(
-          texto: fila.fechaRevisionController.text,
-          hint: 'Seleccione fecha',
-          onTap: () => seleccionarFechaRevision(fila),
+          texto:
+              fila.fechaRevisionController.text,
+          hint: _fechaHoyFormateada(),
+          onTap: () =>
+              seleccionarFechaRevision(fila),
+          mostrarCalendario: true,
         ),
 
-        // ======================================================
-        // NÚMERO DE ESTACIÓN / TORRE
-        // ======================================================
-
         Container(
-          height: 48,
+          height: 55,
           alignment: Alignment.center,
           padding: const EdgeInsets.all(3),
           child: Text(
             fila.torre,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              fontSize: 9,
+              fontSize: 13,
               fontWeight: FontWeight.bold,
               color: Color(0xFF007A4D),
             ),
           ),
         ),
-
-        // ======================================================
-        // ANOMALÍA
-        // ======================================================
 
         _celdaEditable(
           fila.anomaliaController,
@@ -2245,15 +2187,13 @@ class _InicioScreenState extends State<InicioScreen> {
               TextInputType.multiline,
         ),
 
-        // ======================================================
-        // FECHA DE CORRECCIÓN
-        // ======================================================
-
         _celdaFecha(
-          texto: fila.fechaCorreccionController.text,
-          hint: 'Fecha / PENDIENTE',
-          onTap: () => seleccionarFechaCorreccion(fila),
-          mostrarCalendario: true,
+          texto:
+              fila.fechaCorreccionController.text,
+          hint: 'SELECCIONE ESTATUS',
+          onTap: () =>
+              seleccionarFechaCorreccion(fila),
+          mostrarCalendario: false,
         ),
       ],
     );
@@ -2269,32 +2209,42 @@ class _InicioScreenState extends State<InicioScreen> {
     required VoidCallback onTap,
     bool mostrarCalendario = true,
   }) {
-    final bool tieneTexto = texto.trim().isNotEmpty;
-    final bool esPendiente = texto.trim() == 'PENDIENTE';
+    final bool tieneTexto =
+        texto.trim().isNotEmpty;
+
+    final bool esPendiente =
+        texto.trim().isNotEmpty;
 
     return SizedBox(
-      height: 48,
+      height: 55,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(3),
+            padding:
+                const EdgeInsets.all(3),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment:
+                  MainAxisAlignment.center,
               children: [
                 Expanded(
                   child: Text(
-                    tieneTexto ? texto : hint,
-                    textAlign: TextAlign.center,
+                    tieneTexto
+                        ? texto
+                        : hint,
+                    textAlign:
+                        TextAlign.center,
                     style: TextStyle(
-                      fontSize: 8,
-                      fontWeight: esPendiente
-                          ? FontWeight.bold
-                          : FontWeight.normal,
+                      fontSize: 13,
+                      fontWeight:
+                          esPendiente
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                       color: tieneTexto
                           ? (esPendiente
-                              ? const Color(0xFF007A4D)
+                              ? const Color(
+                                  0xFF007A4D)
                               : Colors.black)
                           : Colors.grey,
                     ),
@@ -2303,8 +2253,9 @@ class _InicioScreenState extends State<InicioScreen> {
                 if (mostrarCalendario)
                   const Icon(
                     Icons.calendar_month,
-                    size: 16,
-                    color: Color(0xFF007A4D),
+                    size: 18,
+                    color:
+                        Color(0xFF007A4D),
                   ),
               ],
             ),
@@ -2326,7 +2277,7 @@ class _InicioScreenState extends State<InicioScreen> {
         TextInputType.text,
   }) {
     return SizedBox(
-      height: maxLines > 1 ? 65 : 48,
+      height: maxLines > 1 ? 70 : 55,
       child: Padding(
         padding: const EdgeInsets.all(3),
         child: TextField(
@@ -2337,7 +2288,7 @@ class _InicioScreenState extends State<InicioScreen> {
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(
-              fontSize: 8,
+              fontSize: 13,
               color: Colors.grey,
             ),
             border: InputBorder.none,
@@ -2345,7 +2296,7 @@ class _InicioScreenState extends State<InicioScreen> {
                 const EdgeInsets.all(3),
           ),
           style: const TextStyle(
-            fontSize: 9,
+            fontSize: 13,
             color: Colors.black,
           ),
         ),
@@ -2371,7 +2322,7 @@ class _EncabezadoTabla extends StatelessWidget {
         texto,
         textAlign: TextAlign.center,
         style: const TextStyle(
-          fontSize: 8,
+          fontSize: 13,
           fontWeight: FontWeight.bold,
         ),
       ),
