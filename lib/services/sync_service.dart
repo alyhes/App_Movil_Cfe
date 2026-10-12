@@ -12,7 +12,7 @@ class SyncService {
   // Esta es la IP de tu computadora dentro de la red Wi-Fi.
   // El teléfono se conecta a esta dirección para llegar a Ubuntu.
   //
-  static const String baseUrl = 'http://192.168.1.105:8000';
+  static const String baseUrl = 'http://192.168.1.108:8000';
 
   final DatabaseHelper _database = DatabaseHelper.instance;
 

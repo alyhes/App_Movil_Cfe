@@ -1,17 +1,24 @@
+
 import 'package:flutter/material.dart';
+
 import '../database/database_helper.dart';
 import 'inspecciones_guardadas_screen.dart';
 import 'login_screen.dart';
+import 'admin_usuarios_screen.dart';
 
-// ============================================================
-// PANTALLA PRINCIPAL - FORMATO DE INSPECCIÓN CFE
-// ============================================================
+const Color verdeCfe = Color(0xFF007A4D);
 
 String _fechaHoyFormateada() {
-  final ahora = DateTime.now();
-  return '${ahora.day.toString().padLeft(2, '0')}/'
-      '${ahora.month.toString().padLeft(2, '0')}/'
-      '${ahora.year}';
+  final fecha = DateTime.now();
+  return '${fecha.day.toString().padLeft(2, '0')}/'
+      '${fecha.month.toString().padLeft(2, '0')}/'
+      '${fecha.year}';
+}
+
+String _formatearFecha(DateTime fecha) {
+  return '${fecha.day.toString().padLeft(2, '0')}/'
+      '${fecha.month.toString().padLeft(2, '0')}/'
+      '${fecha.year}';
 }
 
 class InicioScreen extends StatefulWidget {
@@ -20,10 +27,6 @@ class InicioScreen extends StatefulWidget {
   @override
   State<InicioScreen> createState() => _InicioScreenState();
 }
-
-// ============================================================
-// MODELO PARA CADA LÍNEA DE TRANSMISIÓN
-// ============================================================
 
 class _LineaTransmision {
   final String codigo;
@@ -41,20 +44,15 @@ class _LineaTransmision {
   String get nombreCompleto => '$codigo ($tramo)';
 }
 
-// ============================================================
-// MODELO INTERNO PARA CADA FILA / TORRE
-// ============================================================
-
-class _FilaTorre {
+/// Una fila representa UNA anomalía.
+class _FilaAnomalia {
   final String torre;
-
   final TextEditingController fechaRevisionController;
   final TextEditingController anomaliaController;
   final TextEditingController fechaCorreccionController;
 
-  _FilaTorre({
-    required this.torre,
-  })  : fechaRevisionController =
+  _FilaAnomalia({required this.torre})
+      : fechaRevisionController =
             TextEditingController(text: _fechaHoyFormateada()),
         anomaliaController = TextEditingController(),
         fechaCorreccionController = TextEditingController();
@@ -66,104 +64,60 @@ class _FilaTorre {
   }
 }
 
-// ============================================================
-// ESTADO
-// ============================================================
-
 class _InicioScreenState extends State<InicioScreen> {
-  @override
-  void initState() {
-    super.initState();
-    fechaSeleccionada = DateTime.now();
-  }
-
-  // ============================================================
-  // DATOS DE LÍNEAS
-  // ============================================================
+  DateTime? fechaSeleccionada = DateTime.now();
 
   String? voltajeSeleccionado;
   _LineaTransmision? lineaSeleccionada;
-
-  // ============================================================
-  // FECHA DE INSPECCIÓN
-  // ============================================================
-
-  DateTime? fechaSeleccionada;
-
-  // ============================================================
-  // TIPO DE INSPECCIÓN
-  // ============================================================
+  String? zonaSeleccionada;
 
   final TextEditingController tipoInspeccionController =
       TextEditingController();
+  final TextEditingController buscadorTorreController =
+      TextEditingController();
+  final TextEditingController elaboroNombreController =
+      TextEditingController();
+  final TextEditingController elaboroRpeController =
+      TextEditingController();
+  final TextEditingController voBoNombreController =
+      TextEditingController();
+  final TextEditingController voBoRpeController =
+      TextEditingController();
 
-  // ============================================================
-  // ZONA
-  // ============================================================
+  final List<String> tiposInspeccion = const [
+    'Inspección Mayor',
+    'Inspección Menor',
+    'Patrullaje',
+    'Aéreo',
+  ];
 
-  String? zonaSeleccionada;
-
-  final List<String> zonasTransmision = [
+  final List<String> zonasTransmision = const [
     'Escárcega',
     'Santa Lucía',
   ];
 
-  // ============================================================
-  // BUSCADOR DE TORRES
-  // ============================================================
-
-  final TextEditingController buscadorTorreController =
-      TextEditingController();
-
-  String busquedaTorre = '';
-
-  final List<String> torresSeleccionadas = [];
-
-  // ============================================================
-  // FILAS DINÁMICAS DE TORRES
-  // ============================================================
-
-  final List<_FilaTorre> filasTorres = [];
-
-  // ============================================================
-  // ELABORÓ
-  // ============================================================
-
-  final TextEditingController elaboroNombreController =
-      TextEditingController();
-
-  final TextEditingController elaboroRpeController =
-      TextEditingController();
-
-  // ============================================================
-  // VO. BO.
-  // ============================================================
-
-  final TextEditingController voBoNombreController =
-      TextEditingController();
-
-  final TextEditingController voBoRpeController =
-      TextEditingController();
-
-  // ============================================================
-  // ESTADO DE GUARDADO
-  // ============================================================
-
-  bool guardando = false;
-
-  // ============================================================
-  // VOLTAJES
-  // ============================================================
-
-  final List<String> voltajes = [
+  final List<String> voltajes = const [
     '115 kV',
     '230 kV',
     '400 kV',
   ];
 
-  // ============================================================
-  // INFORMACIÓN REAL DE LAS LÍNEAS
-  // ============================================================
+  final List<String> torresSeleccionadas = [];
+
+  // Ahora puede haber varias filas para una misma torre.
+  final List<_FilaAnomalia> filasAnomalias = [];
+
+  String busquedaTorre = '';
+  bool guardando = false;
+
+  bool get esAdministrador {
+    final usuario = SesionUsuario.usuarioActual;
+    if (usuario == null) return false;
+
+    return usuario['usuario']?.toString().toUpperCase() ==
+            'ADMIN_CFE' &&
+        usuario['rol']?.toString() == 'administrador';
+  }
 
   final List<_LineaTransmision> lineas115 = const [
     _LineaTransmision(
@@ -294,91 +248,53 @@ class _InicioScreenState extends State<InicioScreen> {
     ),
   ];
 
-  // ============================================================
-  // OBTENER LÍNEAS SEGÚN VOLTAJE
-  // ============================================================
-
   List<_LineaTransmision> obtenerLineas() {
     switch (voltajeSeleccionado) {
       case '115 kV':
         return lineas115;
-
       case '230 kV':
         return lineas230;
-
       case '400 kV':
         return lineas400;
-
       default:
         return [];
     }
   }
 
-  // ============================================================
-  // OBTENER TORRES DE LA LÍNEA SELECCIONADA
-  // ============================================================
-
   List<String> obtenerTorres() {
-    if (lineaSeleccionada == null) {
-      return [];
-    }
+    if (lineaSeleccionada == null) return [];
 
-    final int inicio = lineaSeleccionada!.torreInicial;
-    final int fin = lineaSeleccionada!.torreFinal;
-
-    final int cantidad = fin - inicio + 1;
+    final inicio = lineaSeleccionada!.torreInicial;
+    final fin = lineaSeleccionada!.torreFinal;
 
     return List.generate(
-      cantidad,
-      (index) {
-        final numero = inicio + index;
-
-        return 'T-${numero.toString().padLeft(3, '0')}';
-      },
+      fin - inicio + 1,
+      (index) => 'T-${(inicio + index).toString().padLeft(3, '0')}',
     );
   }
 
-  // ============================================================
-  // FILTRAR TORRES
-  // ============================================================
-
   List<String> obtenerTorresFiltradas() {
-    final torres = obtenerTorres();
-
     final texto = busquedaTorre.trim().toLowerCase();
 
-    if (texto.isEmpty) {
-      return torres;
-    }
+    if (texto.isEmpty) return obtenerTorres();
 
-    return torres.where((torre) {
-      return torre.toLowerCase().contains(texto);
-    }).toList();
+    return obtenerTorres()
+        .where((torre) => torre.toLowerCase().contains(texto))
+        .toList();
   }
 
-  // ============================================================
-  // ACTUALIZAR FILAS DE LA TABLA
-  // ============================================================
-
   void actualizarFilasTorres() {
-    for (final fila in filasTorres) {
+    for (final fila in filasAnomalias) {
       fila.dispose();
     }
 
-    filasTorres.clear();
+    filasAnomalias.clear();
 
+    // Cada torre seleccionada empieza con una sola anomalía.
     for (final torre in torresSeleccionadas) {
-      filasTorres.add(
-        _FilaTorre(
-          torre: torre,
-        ),
-      );
+      filasAnomalias.add(_FilaAnomalia(torre: torre));
     }
   }
-
-  // ============================================================
-  // SELECCIONAR / DESELECCIONAR TORRE
-  // ============================================================
 
   void cambiarSeleccionTorre(String torre) {
     setState(() {
@@ -392,10 +308,6 @@ class _InicioScreenState extends State<InicioScreen> {
     });
   }
 
-  // ============================================================
-  // LIMPIAR TORRES SELECCIONADAS
-  // ============================================================
-
   void limpiarTorresSeleccionadas() {
     setState(() {
       torresSeleccionadas.clear();
@@ -403,12 +315,50 @@ class _InicioScreenState extends State<InicioScreen> {
     });
   }
 
-  // ============================================================
-  // SELECCIONAR FECHA PRINCIPAL
-  // ============================================================
+  /// Agrega una anomalía nueva a la misma torre.
+  void agregarAnomalia(String torre) {
+    setState(() {
+      final nuevaFila = _FilaAnomalia(torre: torre);
+
+      // Insertar debajo de la última fila de esa torre.
+      final indices = <int>[];
+
+      for (int i = 0; i < filasAnomalias.length; i++) {
+        if (filasAnomalias[i].torre == torre) {
+          indices.add(i);
+        }
+      }
+
+      if (indices.isEmpty) {
+        filasAnomalias.add(nuevaFila);
+      } else {
+        filasAnomalias.insert(indices.last + 1, nuevaFila);
+      }
+    });
+
+    _mostrarMensaje('Se agregó otra anomalía a $torre.');
+  }
+
+  void eliminarAnomalia(_FilaAnomalia fila) {
+    final filasDeEstaTorre =
+        filasAnomalias.where((item) => item.torre == fila.torre).length;
+
+    if (filasDeEstaTorre <= 1) {
+      _mostrarMensaje(
+        'Cada torre debe conservar al menos una fila.',
+        esError: true,
+      );
+      return;
+    }
+
+    setState(() {
+      filasAnomalias.remove(fila);
+      fila.dispose();
+    });
+  }
 
   Future<void> seleccionarFecha() async {
-    final DateTime? fecha = await showDatePicker(
+    final fecha = await showDatePicker(
       context: context,
       initialDate: fechaSeleccionada ?? DateTime.now(),
       firstDate: DateTime(2020),
@@ -416,38 +366,26 @@ class _InicioScreenState extends State<InicioScreen> {
       locale: const Locale('es', 'MX'),
     );
 
-    if (fecha != null) {
-      setState(() {
-        fechaSeleccionada = fecha;
-      });
+    if (fecha != null && mounted) {
+      setState(() => fechaSeleccionada = fecha);
     }
   }
 
-  // ============================================================
-  // SELECCIONAR FECHA DE REVISIÓN DE UNA TORRE
-  // ============================================================
-
-  Future<void> seleccionarFechaRevision(
-    _FilaTorre fila,
-  ) async {
+  Future<void> seleccionarFechaRevision(_FilaAnomalia fila) async {
     DateTime fechaInicial = DateTime.now();
+    final partes = fila.fechaRevisionController.text.split('/');
 
-    if (fila.fechaRevisionController.text.trim().isNotEmpty) {
-      final partes =
-          fila.fechaRevisionController.text.trim().split('/');
+    if (partes.length == 3) {
+      final dia = int.tryParse(partes[0]);
+      final mes = int.tryParse(partes[1]);
+      final anio = int.tryParse(partes[2]);
 
-      if (partes.length == 3) {
-        final dia = int.tryParse(partes[0]);
-        final mes = int.tryParse(partes[1]);
-        final anio = int.tryParse(partes[2]);
-
-        if (dia != null && mes != null && anio != null) {
-          fechaInicial = DateTime(anio, mes, dia);
-        }
+      if (dia != null && mes != null && anio != null) {
+        fechaInicial = DateTime(anio, mes, dia);
       }
     }
 
-    final DateTime? fecha = await showDatePicker(
+    final fecha = await showDatePicker(
       context: context,
       initialDate: fechaInicial,
       firstDate: DateTime(2020),
@@ -455,99 +393,69 @@ class _InicioScreenState extends State<InicioScreen> {
       locale: const Locale('es', 'MX'),
     );
 
-    if (fecha != null) {
+    if (fecha != null && mounted) {
       setState(() {
-        fila.fechaRevisionController.text =
-            formatearFecha(fecha);
+        fila.fechaRevisionController.text = _formatearFecha(fecha);
       });
     }
   }
 
-  // ============================================================
-  // SELECCIONAR ESTATUS DE CORRECCIÓN
-  // ============================================================
+  Future<void> seleccionarFechaCorreccion(_FilaAnomalia fila) async {
+    const opciones = [
+      'URGENTE',
+      'PROG 7 D',
+      'PROG 30 D',
+      'HECHO',
+    ];
 
-  Future<void> seleccionarFechaCorreccion(
-    _FilaTorre fila,
-  ) async {
-    final String? opcion = await showDialog<String>(
+    final opcion = await showDialog<String>(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text(
-            'Estatus de corrección',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Estatus de corrección'),
+        content: const Text('Seleccione el estatus de la anomalía:'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('CANCELAR'),
           ),
-          content: const Text(
-            'Seleccione el estatus de la anomalía:',
-            style: TextStyle(fontSize: 16),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(context).pop(),
-              child: const Text(
-                'CANCELAR',
-                style: TextStyle(fontSize: 14),
+          ...opciones.map(
+            (texto) => TextButton(
+              onPressed: () => Navigator.pop(dialogContext, texto),
+              child: Text(
+                texto,
+                style: const TextStyle(
+                  color: verdeCfe,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
-            _opcionCorreccion('URGENTE', context),
-            _opcionCorreccion('PROG 7 D', context),
-            _opcionCorreccion('PROG 30 D', context),
-            _opcionCorreccion('HECHO', context),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
 
-    if (!mounted || opcion == null) return;
-
-    setState(() {
-      fila.fechaCorreccionController.text = opcion;
-    });
+    if (opcion != null && mounted) {
+      setState(() {
+        fila.fechaCorreccionController.text = opcion;
+      });
+    }
   }
 
-  TextButton _opcionCorreccion(
-    String texto,
-    BuildContext dialogContext,
-  ) {
-    return TextButton(
-      onPressed: () =>
-          Navigator.of(dialogContext).pop(texto),
-      child: Text(
-        texto,
-        style: const TextStyle(
-          fontSize: 15,
-          color: Color(0xFF007A4D),
-          fontWeight: FontWeight.bold,
-        ),
+  void _mostrarMensaje(String mensaje, {bool esError = false}) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: esError ? Colors.red : verdeCfe,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
 
-  // ============================================================
-  // FORMATO DE FECHA
-  // ============================================================
-
-  String formatearFecha(DateTime fecha) {
-    return '${fecha.day.toString().padLeft(2, '0')}/'
-        '${fecha.month.toString().padLeft(2, '0')}/'
-        '${fecha.year}';
-  }
-
-  // ============================================================
-  // GUARDAR INSPECCIÓN COMPLETA
-  // ============================================================
-
   Future<void> guardarInspeccion() async {
     if (voltajeSeleccionado == null) {
-      _mostrarMensaje(
-        'Seleccione el voltaje.',
-        esError: true,
-      );
+      _mostrarMensaje('Seleccione el voltaje.', esError: true);
       return;
     }
 
@@ -577,7 +485,7 @@ class _InicioScreenState extends State<InicioScreen> {
 
     if (tipoInspeccionController.text.trim().isEmpty) {
       _mostrarMensaje(
-        'Escriba el tipo de inspección.',
+        'Seleccione el tipo de inspección.',
         esError: true,
       );
       return;
@@ -591,36 +499,37 @@ class _InicioScreenState extends State<InicioScreen> {
       return;
     }
 
-    if (elaboroNombreController.text.trim().isEmpty) {
+    if (elaboroNombreController.text.trim().isEmpty ||
+        elaboroRpeController.text.trim().isEmpty) {
       _mostrarMensaje(
-        'Escriba el nombre de quien elaboró.',
+        'Complete el nombre y RPE de quien elaboró.',
         esError: true,
       );
       return;
     }
 
-    if (elaboroRpeController.text.trim().isEmpty) {
+    // No guardar filas vacías creadas por accidente.
+    final filasValidas = filasAnomalias
+        .where((fila) => fila.anomaliaController.text.trim().isNotEmpty)
+        .toList();
+
+    if (filasValidas.isEmpty) {
       _mostrarMensaje(
-        'Escriba el RPE de quien elaboró.',
+        'Escriba al menos una anomalía antes de guardar.',
         esError: true,
       );
       return;
     }
 
-    setState(() {
-      guardando = true;
-    });
+    setState(() => guardando = true);
 
     try {
       final inspeccion = <String, dynamic>{
-        'fecha_inspeccion':
-            formatearFecha(fechaSeleccionada!),
+        'fecha_inspeccion': _formatearFecha(fechaSeleccionada!),
         'linea_transmision':
             '$voltajeSeleccionado - ${lineaSeleccionada!.nombreCompleto}',
-        'zona_transmision':
-            zonaSeleccionada!,
-        'tipo_inspeccion':
-            tipoInspeccionController.text.trim(),
+        'zona_transmision': zonaSeleccionada!,
+        'tipo_inspeccion': tipoInspeccionController.text.trim(),
         'elaboro':
             '${elaboroNombreController.text.trim()} '
             '(RPE: ${elaboroRpeController.text.trim()})',
@@ -633,103 +542,72 @@ class _InicioScreenState extends State<InicioScreen> {
         'sincronizado': 0,
       };
 
+      // Cada fila se guarda como una anomalía independiente.
       final List<Map<String, dynamic>> anomalias = [];
 
-      for (final fila in filasTorres) {
+      for (final fila in filasValidas) {
         anomalias.add({
-          'fecha_revision':
-              fila.fechaRevisionController.text.trim(),
-          'numero_estacion':
-              fila.torre,
-          'anomalia':
-              fila.anomaliaController.text.trim(),
+          'fecha_revision': fila.fechaRevisionController.text.trim(),
+          'numero_estacion': fila.torre,
+          'anomalia': fila.anomaliaController.text.trim(),
           'fecha_correccion':
               fila.fechaCorreccionController.text.trim(),
         });
       }
 
-      final int id =
-          await DatabaseHelper.instance.guardarInspeccionCompleta(
+      final id = await DatabaseHelper.instance.guardarInspeccionCompleta(
         inspeccion: inspeccion,
         anomalias: anomalias,
       );
 
       if (!mounted) return;
 
-      setState(() {
-        guardando = false;
-      });
+      setState(() => guardando = false);
 
-      await showDialog(
+      await showDialog<void>(
         context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: const Row(
-              children: [
-                Icon(
-                  Icons.check_circle,
-                  color: Color(0xFF007A4D),
-                ),
-                SizedBox(width: 8),
-                Text(
-                  'Inspección guardada',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            content: Text(
-              'La inspección se guardó correctamente '
-              'en el dispositivo.\n\n'
-              'Número de registro: $id\n'
-              'Línea: ${lineaSeleccionada!.nombreCompleto}\n'
-              'Torres guardadas: ${torresSeleccionadas.length}',
-              style: const TextStyle(fontSize: 16),
-            ),
-            actions: [
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      const Color(0xFF007A4D),
-                  foregroundColor: Colors.white,
-                ),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: const Text(
-                  'ACEPTAR',
-                  style: TextStyle(fontSize: 14),
-                ),
-              ),
+        builder: (dialogContext) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle, color: verdeCfe),
+              SizedBox(width: 8),
+              Expanded(child: Text('Inspección guardada')),
             ],
-          );
-        },
+          ),
+          content: Text(
+            'La inspección se guardó en el dispositivo.\n\n'
+            'Número de registro: $id\n'
+            'Línea: ${lineaSeleccionada!.nombreCompleto}\n'
+            'Torres seleccionadas: ${torresSeleccionadas.length}\n'
+            'Anomalías guardadas: ${anomalias.length}',
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: verdeCfe,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('ACEPTAR'),
+            ),
+          ],
+        ),
       );
 
-      if (!mounted) return;
-      limpiarFormulario();
+      if (mounted) limpiarFormulario();
     } catch (e) {
       if (!mounted) return;
 
-      setState(() {
-        guardando = false;
-      });
-
+      setState(() => guardando = false);
       _mostrarMensaje(
-        'Ocurrió un error al guardar:\n$e',
+        'Error al guardar la inspección:\n$e',
         esError: true,
       );
     }
   }
 
-  // ============================================================
-  // LIMPIAR TODO EL FORMULARIO DESPUÉS DE GUARDAR
-  // ============================================================
-
   void limpiarFormulario() {
-    for (final fila in filasTorres) {
+    for (final fila in filasAnomalias) {
       fila.dispose();
     }
 
@@ -737,14 +615,13 @@ class _InicioScreenState extends State<InicioScreen> {
       voltajeSeleccionado = null;
       lineaSeleccionada = null;
       zonaSeleccionada = null;
-
       fechaSeleccionada = DateTime.now();
 
       busquedaTorre = '';
       buscadorTorreController.clear();
 
       torresSeleccionadas.clear();
-      filasTorres.clear();
+      filasAnomalias.clear();
 
       tipoInspeccionController.clear();
       elaboroNombreController.clear();
@@ -754,123 +631,65 @@ class _InicioScreenState extends State<InicioScreen> {
     });
   }
 
-  // ============================================================
-  // MOSTRAR MENSAJE
-  // ============================================================
-
-  void _mostrarMensaje(
-    String mensaje, {
-    bool esError = false,
-  }) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          mensaje,
-          style: const TextStyle(fontSize: 14),
-        ),
-        backgroundColor:
-            esError ? Colors.red : const Color(0xFF007A4D),
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
- // ============================================================
-// CERRAR SESIÓN
-// ============================================================
-
-void cerrarSesion() {
-  showDialog(
-    context: context,
-    builder: (dialogContext) {
-      return AlertDialog(
-        title: const Text(
-          'Cerrar sesión',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+  void cerrarSesion() {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Cerrar sesión'),
         content: const Text(
           '¿Estás seguro de que deseas cerrar sesión?',
-          style: TextStyle(fontSize: 16),
         ),
         actions: [
           TextButton(
-            onPressed: () {
-              Navigator.of(dialogContext).pop();
-            },
-            child: const Text(
-              'CANCELAR',
-              style: TextStyle(fontSize: 14),
-            ),
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('CANCELAR'),
           ),
-
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF007A4D),
+              backgroundColor: verdeCfe,
               foregroundColor: Colors.white,
             ),
             onPressed: () {
-              // Cerrar primero el cuadro de confirmación
-              Navigator.of(dialogContext).pop();
+              Navigator.pop(dialogContext);
+              SesionUsuario.usuarioActual = null;
 
-              // Regresar al Login y eliminar las pantallas
-              // anteriores para que no se pueda volver atrás.
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => const LoginScreen(),
+                  builder: (_) => const LoginScreen(),
                 ),
                 (route) => false,
               );
             },
-            child: const Text(
-              'CERRAR SESIÓN',
-              style: TextStyle(fontSize: 14),
-            ),
+            child: const Text('CERRAR SESIÓN'),
           ),
         ],
-      );
-    },
-  );
-}
-  // ============================================================
-  // DISPOSE
-  // ============================================================
+      ),
+    );
+  }
 
   @override
   void dispose() {
     buscadorTorreController.dispose();
     tipoInspeccionController.dispose();
-
-    for (final fila in filasTorres) {
-      fila.dispose();
-    }
-
     elaboroNombreController.dispose();
     elaboroRpeController.dispose();
     voBoNombreController.dispose();
     voBoRpeController.dispose();
 
+    for (final fila in filasAnomalias) {
+      fila.dispose();
+    }
+
     super.dispose();
   }
-
-  // ============================================================
-  // BUILD
-  // ============================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-
-      // ========================================================
-      // BARRA SUPERIOR
-      // ========================================================
-
       appBar: AppBar(
-        backgroundColor: const Color(0xFF007A4D),
+        backgroundColor: verdeCfe,
         foregroundColor: Colors.white,
         centerTitle: true,
         title: const Text(
@@ -881,60 +700,53 @@ void cerrarSesion() {
           ),
         ),
         actions: [
+          if (esAdministrador)
+            IconButton(
+              tooltip: 'Administrar usuarios',
+              icon: const Icon(Icons.manage_accounts, size: 25),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => AdminUsuariosScreen(),
+                  ),
+                );
+              },
+            ),
           IconButton(
             tooltip: 'Inspecciones guardadas',
-            icon: const Icon(
-              Icons.folder_open,
-              size: 24,
-            ),
+            icon: const Icon(Icons.folder_open, size: 24),
             onPressed: () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) =>
-                      const InspeccionesGuardadasScreen(),
+                  builder: (_) => const InspeccionesGuardadasScreen(),
                 ),
               );
             },
           ),
           IconButton(
             tooltip: 'Cerrar sesión',
-            icon: const Icon(
-              Icons.logout,
-              size: 24,
-            ),
+            icon: const Icon(Icons.logout, size: 24),
             onPressed: cerrarSesion,
           ),
         ],
       ),
-
-      // ========================================================
-      // CONTENIDO
-      // ========================================================
-
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(12),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ==================================================
-            // ENCABEZADO CFE
-            // ==================================================
-
             Container(
-              padding: const EdgeInsets.only(
-                top: 10,
-                bottom: 12,
+              padding: const EdgeInsets.symmetric(
+                vertical: 12,
+                horizontal: 8,
               ),
               decoration: BoxDecoration(
-                border: Border.all(
-                  color: Colors.black,
-                  width: 1,
-                ),
+                border: Border.all(color: Colors.black),
               ),
-              child: Column(
-                children: const [
+              child: const Column(
+                children: [
                   Text(
                     'COMISIÓN FEDERAL DE ELECTRICIDAD',
                     textAlign: TextAlign.center,
@@ -962,11 +774,7 @@ void cerrarSesion() {
                     ),
                   ),
                   SizedBox(height: 10),
-                  Divider(
-                    color: Colors.black,
-                    height: 1,
-                  ),
-                  SizedBox(height: 10),
+                  Divider(color: Colors.black),
                   Text(
                     'INSPECCIÓN DE LÍNEAS DE TRANSMISIÓN',
                     textAlign: TextAlign.center,
@@ -978,64 +786,30 @@ void cerrarSesion() {
                 ],
               ),
             ),
-
             const SizedBox(height: 12),
-
-            // ==================================================
-            // DATOS DEL DOCUMENTO
-            // ==================================================
-
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                border: Border.all(
-                  color: Colors.black,
-                  width: 1,
-                ),
+                border: Border.all(color: Colors.black),
               ),
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Hoja: 1 de 1',
-                    style: TextStyle(fontSize: 14),
-                  ),
+              child: const Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Hoja: 1 de 1'),
                   SizedBox(height: 4),
-                  Text(
-                    'CLAVE: P-T150-LT01-R-05',
-                    style: TextStyle(fontSize: 14),
-                  ),
+                  Text('CLAVE: P-T150-LT01-R-05'),
                   SizedBox(height: 4),
-                  Text(
-                    'REVISIÓN: 1',
-                    style: TextStyle(fontSize: 14),
-                  ),
+                  Text('REVISIÓN: 1'),
                   SizedBox(height: 4),
-                  Text(
-                    'FECHA DE ELABORACIÓN: 29.01.2021',
-                    style: TextStyle(fontSize: 14),
-                  ),
+                  Text('FECHA DE ELABORACIÓN: 29.01.2021'),
                 ],
               ),
             ),
-
             const SizedBox(height: 12),
-
-            // ==================================================
-            // TÍTULO
-            // ==================================================
-
             Container(
-              padding: const EdgeInsets.symmetric(
-                vertical: 12,
-                horizontal: 8,
-              ),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                border: Border.all(
-                  color: Colors.black,
-                  width: 1,
-                ),
+                border: Border.all(color: Colors.black),
               ),
               child: const Text(
                 'TRABAJOS PENDIENTES EN LA LÍNEA DE TRANSMISIÓN',
@@ -1046,83 +820,38 @@ void cerrarSesion() {
                 ),
               ),
             ),
-
             const SizedBox(height: 12),
 
-            // ==================================================
-            // INFORMACIÓN DE INSPECCIÓN
-            // ==================================================
-
+            // Selección de línea y torres.
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                border: Border.all(
-                  color: Colors.black,
-                  width: 1,
-                ),
+                border: Border.all(color: Colors.black),
               ),
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'LÍNEA DE TRANSMISIÓN:',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    'LÍNEA DE TRANSMISIÓN',
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
-
                   const SizedBox(height: 8),
-
-                  // VOLTAJE
                   DropdownButtonFormField<String>(
                     initialValue: voltajeSeleccionado,
-                    decoration: InputDecoration(
-                      labelText:
-                          'Seleccione el voltaje',
-                      labelStyle:
-                          const TextStyle(fontSize: 14),
-                      prefixIcon: const Icon(
-                        Icons.bolt,
-                        color: Color(0xFF007A4D),
-                        size: 22,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(5),
-                      ),
-                      focusedBorder:
-                          OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(5),
-                        borderSide:
-                            const BorderSide(
-                          color: Color(0xFF007A4D),
-                          width: 2,
-                        ),
-                      ),
-                      contentPadding:
-                          const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Seleccione el voltaje',
+                      prefixIcon: Icon(Icons.bolt, color: verdeCfe),
+                      border: OutlineInputBorder(),
                     ),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black,
-                    ),
-                    items: voltajes.map((voltaje) {
-                      return DropdownMenuItem<String>(
-                        value: voltaje,
-                        child: Text(
-                          voltaje,
-                          style: const TextStyle(
-                            fontSize: 14,
+                    items: voltajes
+                        .map(
+                          (v) => DropdownMenuItem(
+                            value: v,
+                            child: Text(v),
                           ),
-                        ),
-                      );
-                    }).toList(),
+                        )
+                        .toList(),
                     onChanged: (valor) {
                       setState(() {
                         voltajeSeleccionado = valor;
@@ -1134,566 +863,232 @@ void cerrarSesion() {
                       });
                     },
                   ),
-
                   if (voltajeSeleccionado != null) ...[
                     const SizedBox(height: 10),
-
-                    Text(
-                      'LÍNEA $voltajeSeleccionado:',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-
-                    const SizedBox(height: 6),
-
-                    DropdownButtonFormField<
-                        _LineaTransmision>(
+                    DropdownButtonFormField<_LineaTransmision>(
                       initialValue: lineaSeleccionada,
                       isExpanded: true,
-                      decoration: InputDecoration(
-                        labelText:
-                            'Seleccione la línea',
-                        labelStyle:
-                            const TextStyle(
-                          fontSize: 14,
-                        ),
-                        prefixIcon: const Icon(
+                      decoration: const InputDecoration(
+                        labelText: 'Seleccione la línea',
+                        prefixIcon: Icon(
                           Icons.electrical_services,
-                          color:
-                              Color(0xFF007A4D),
-                          size: 22,
+                          color: verdeCfe,
                         ),
-                        border: OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(5),
-                        ),
-                        focusedBorder:
-                            OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(5),
-                          borderSide:
-                              const BorderSide(
-                            color:
-                                Color(0xFF007A4D),
-                            width: 2,
-                          ),
-                        ),
-                        contentPadding:
-                            const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                      ),
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.black,
+                        border: OutlineInputBorder(),
                       ),
                       items: obtenerLineas()
-                          .map((linea) {
-                        return DropdownMenuItem<
-                            _LineaTransmision>(
-                          value: linea,
-                          child: Text(
-                            linea.nombreCompleto,
-                            overflow:
-                                TextOverflow.ellipsis,
-                            style:
-                                const TextStyle(
-                              fontSize: 14,
+                          .map(
+                            (linea) => DropdownMenuItem(
+                              value: linea,
+                              child: Text(
+                                linea.nombreCompleto,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                          ),
-                        );
-                      }).toList(),
+                          )
+                          .toList(),
                       onChanged: (valor) {
                         setState(() {
                           lineaSeleccionada = valor;
-                          torresSeleccionadas
-                              .clear();
+                          torresSeleccionadas.clear();
                           busquedaTorre = '';
-                          buscadorTorreController
-                              .clear();
+                          buscadorTorreController.clear();
                           actualizarFilasTorres();
                         });
                       },
                     ),
                   ],
-
                   if (lineaSeleccionada != null) ...[
                     const SizedBox(height: 10),
-
                     Container(
                       width: double.infinity,
-                      padding:
-                          const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color:
-                            const Color(0xFFE8F5E9),
-                        border: Border.all(
-                          color:
-                              const Color(0xFF007A4D),
-                        ),
-                        borderRadius:
-                            BorderRadius.circular(5),
+                        color: const Color(0xFFE8F5E9),
+                        border: Border.all(color: verdeCfe),
+                        borderRadius: BorderRadius.circular(5),
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.account_tree,
-                            color:
-                                Color(0xFF007A4D),
-                            size: 23,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              'Línea: ${lineaSeleccionada!.nombreCompleto}\n'
-                              'Torres disponibles: '
-                              'T-${lineaSeleccionada!.torreInicial.toString().padLeft(3, '0')} '
-                              'a '
-                              'T-${lineaSeleccionada!.torreFinal.toString().padLeft(3, '0')}',
-                              style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight:
-                                    FontWeight.bold,
-                                color:
-                                    Color(0xFF007A4D),
-                              ),
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        'Línea: ${lineaSeleccionada!.nombreCompleto}\n'
+                        'Torres: T-${lineaSeleccionada!.torreInicial.toString().padLeft(3, '0')} '
+                        'a T-${lineaSeleccionada!.torreFinal.toString().padLeft(3, '0')}',
+                        style: const TextStyle(
+                          color: verdeCfe,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ],
-
-                  if (lineaSeleccionada != null) ...[
-                    const SizedBox(height: 14),
-
+                    const SizedBox(height: 12),
                     const Text(
-                      'TORRES A INSPECCIONAR:',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
+                      'TORRES A INSPECCIONAR',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-
                     const SizedBox(height: 6),
-
                     TextField(
-                      controller:
-                          buscadorTorreController,
+                      controller: buscadorTorreController,
                       decoration: InputDecoration(
-                        hintText:
-                            'Buscar número de torre...',
-                        hintStyle:
-                            const TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
+                        hintText: 'Buscar número de torre...',
                         prefixIcon: const Icon(
                           Icons.search,
-                          color:
-                              Color(0xFF007A4D),
-                          size: 22,
+                          color: verdeCfe,
                         ),
-                        suffixIcon:
-                            buscadorTorreController
-                                    .text
-                                    .isNotEmpty
-                                ? IconButton(
-                                    icon:
-                                        const Icon(
-                                      Icons.clear,
-                                      size: 20,
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        buscadorTorreController
-                                            .clear();
-                                        busquedaTorre =
-                                            '';
-                                      });
-                                    },
-                                  )
-                                : null,
-                        border: OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(5),
-                        ),
-                        focusedBorder:
-                            OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(5),
-                          borderSide:
-                              const BorderSide(
-                            color:
-                                Color(0xFF007A4D),
-                            width: 2,
-                          ),
-                        ),
-                        contentPadding:
-                            const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                      ),
-                      style: const TextStyle(
-                        fontSize: 14,
-                      ),
-                      onChanged: (valor) {
-                        setState(() {
-                          busquedaTorre = valor;
-                        });
-                      },
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    Container(
-                      width: double.infinity,
-                      padding:
-                          const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color:
-                            torresSeleccionadas
-                                    .isNotEmpty
-                                ? const Color(
-                                    0xFFE8F5E9)
-                                : const Color(
-                                    0xFFF2F2F2),
-                        borderRadius:
-                            BorderRadius.circular(5),
-                        border: Border.all(
-                          color:
-                              torresSeleccionadas
-                                      .isNotEmpty
-                                  ? const Color(
-                                      0xFF007A4D)
-                                  : Colors.grey,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            torresSeleccionadas
-                                    .isNotEmpty
-                                ? Icons.check_circle
-                                : Icons.info_outline,
-                            size: 21,
-                            color:
-                                torresSeleccionadas
-                                        .isNotEmpty
-                                    ? const Color(
-                                        0xFF007A4D)
-                                    : Colors.grey,
-                          ),
-                          const SizedBox(width: 7),
-                          Expanded(
-                            child: Text(
-                              '${torresSeleccionadas.length} TORRES SELECCIONADAS',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight:
-                                    FontWeight.bold,
-                                color:
-                                    torresSeleccionadas
-                                            .isNotEmpty
-                                        ? const Color(
-                                            0xFF007A4D)
-                                        : Colors.grey[
-                                            700],
-                              ),
-                            ),
-                          ),
-                          if (torresSeleccionadas
-                              .isNotEmpty)
-                            TextButton(
-                              onPressed:
-                                  limpiarTorresSeleccionadas,
-                              child: const Text(
-                                'LIMPIAR',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    if (obtenerTorres().isNotEmpty)
-                      Container(
-                        height: 250,
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: Colors.grey,
-                          ),
-                          borderRadius:
-                              BorderRadius.circular(5),
-                        ),
-                        child: ListView.builder(
-                          itemCount:
-                              obtenerTorresFiltradas()
-                                  .length,
-                          itemBuilder:
-                              (context, index) {
-                            final torres =
-                                obtenerTorresFiltradas();
-
-                            final torre =
-                                torres[index];
-
-                            final seleccionada =
-                                torresSeleccionadas
-                                    .contains(torre);
-
-                            return CheckboxListTile(
-                              dense: false,
-                              title: Text(
-                                torre,
-                                style:
-                                    const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight:
-                                      FontWeight.w500,
-                                ),
-                              ),
-                              value: seleccionada,
-                              activeColor:
-                                  const Color(
-                                      0xFF007A4D),
-                              controlAffinity:
-                                  ListTileControlAffinity
-                                      .leading,
-                              onChanged: (valor) {
-                                cambiarSeleccionTorre(
-                                    torre);
-                              },
-                            );
+                        suffixIcon: IconButton(
+                          tooltip: 'Limpiar búsqueda',
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            setState(() {
+                              buscadorTorreController.clear();
+                              busquedaTorre = '';
+                            });
                           },
                         ),
+                        border: const OutlineInputBorder(),
                       ),
-
-                    if (obtenerTorresFiltradas()
-                        .isEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding:
-                            const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: Colors.grey,
-                          ),
-                          borderRadius:
-                              BorderRadius.circular(5),
-                        ),
-                        child: const Text(
-                          'No se encontraron torres.',
-                          textAlign:
-                              TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
+                      onChanged: (valor) {
+                        setState(() => busquedaTorre = valor);
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${torresSeleccionadas.length} TORRES SELECCIONADAS',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: verdeCfe,
+                            ),
                           ),
                         ),
-                      ),
-
-                    if (torresSeleccionadas
-                        .isNotEmpty) ...[
-                      const SizedBox(height: 10),
-
-                      const Text(
-                        'TORRES SELECCIONADAS:',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight:
-                              FontWeight.bold,
+                        TextButton(
+                          onPressed: limpiarTorresSeleccionadas,
+                          child: const Text('LIMPIAR'),
                         ),
+                      ],
+                    ),
+                    Container(
+                      height: 250,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey),
+                        borderRadius: BorderRadius.circular(5),
                       ),
+                      child: ListView.builder(
+                        itemCount: obtenerTorresFiltradas().length,
+                        itemBuilder: (context, index) {
+                          final torre = obtenerTorresFiltradas()[index];
+                          final seleccionada =
+                              torresSeleccionadas.contains(torre);
 
-                      const SizedBox(height: 5),
-
+                          return CheckboxListTile(
+                            title: Text(torre),
+                            value: seleccionada,
+                            activeColor: verdeCfe,
+                            controlAffinity:
+                                ListTileControlAffinity.leading,
+                            onChanged: (_) => cambiarSeleccionTorre(torre),
+                          );
+                        },
+                      ),
+                    ),
+                    if (torresSeleccionadas.isNotEmpty) ...[
+                      const SizedBox(height: 8),
                       Wrap(
                         spacing: 5,
                         runSpacing: 5,
-                        children:
-                            torresSeleccionadas
-                                .map((torre) {
-                          return Chip(
-                            backgroundColor:
-                                const Color(
-                              0xFFE8F5E9,
-                            ),
-                            label: Text(
-                              torre,
-                              style:
-                                  const TextStyle(
-                                fontSize: 13,
-                                color: Color(
-                                  0xFF007A4D,
+                        children: torresSeleccionadas
+                            .map(
+                              (torre) => Chip(
+                                label: Text(torre),
+                                backgroundColor: const Color(0xFFE8F5E9),
+                                deleteIcon: const Icon(
+                                  Icons.close,
+                                  size: 18,
                                 ),
-                                fontWeight:
-                                    FontWeight.bold,
+                                onDeleted: () =>
+                                    cambiarSeleccionTorre(torre),
                               ),
-                            ),
-                            deleteIcon:
-                                const Icon(
-                              Icons.close,
-                              size: 18,
-                              color:
-                                  Color(0xFF007A4D),
-                            ),
-                            onDeleted: () {
-                              cambiarSeleccionTorre(
-                                  torre);
-                            },
-                          );
-                        }).toList(),
+                            )
+                            .toList(),
                       ),
                     ],
                   ],
-
                   const SizedBox(height: 14),
-
-                  // ==================================================
-                  // FECHA
-                  // ==================================================
-
-                  _campoFecha(),
-
-                  const SizedBox(height: 14),
-
-                  const Text(
-                    'TIPO DE INSPECCIÓN:',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  TextField(
-                    controller:
-                        tipoInspeccionController,
-                    maxLines: 2,
-                    decoration: InputDecoration(
-                      hintText:
-                          'Escriba el tipo de inspección...',
-                      hintStyle: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
+                  Row(
+                    children: [
+                      const Text(
+                        'FECHA:',
+                        style: TextStyle(fontWeight: FontWeight.bold),
                       ),
-                      prefixIcon: const Icon(
-                        Icons.assignment_outlined,
-                        color:
-                            Color(0xFF007A4D),
-                        size: 22,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(5),
-                      ),
-                      focusedBorder:
-                          OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(5),
-                        borderSide:
-                            const BorderSide(
-                          color:
-                              Color(0xFF007A4D),
-                          width: 2,
-                        ),
-                      ),
-                      contentPadding:
-                          const EdgeInsets.all(10),
-                    ),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black,
-                    ),
-                  ),
-
-                  const SizedBox(height: 14),
-
-                  const Text(
-                    'ZONA DE TRANSMISIÓN:',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  DropdownButtonFormField<String>(
-                    initialValue: zonaSeleccionada,
-                    decoration: InputDecoration(
-                      labelText:
-                          'Seleccione la zona',
-                      labelStyle:
-                          const TextStyle(
-                        fontSize: 14,
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.location_on_outlined,
-                        color:
-                            Color(0xFF007A4D),
-                        size: 22,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(5),
-                      ),
-                      focusedBorder:
-                          OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(5),
-                        borderSide:
-                            const BorderSide(
-                          color:
-                              Color(0xFF007A4D),
-                          width: 2,
-                        ),
-                      ),
-                      contentPadding:
-                          const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                    ),
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: Colors.black,
-                    ),
-                    items: zonasTransmision
-                        .map((zona) {
-                      return DropdownMenuItem<String>(
-                        value: zona,
+                      const SizedBox(width: 10),
+                      Expanded(
                         child: Text(
-                          zona,
-                          style:
-                              const TextStyle(
-                            fontSize: 14,
+                          _formatearFecha(
+                            fechaSeleccionada ?? DateTime.now(),
                           ),
                         ),
-                      );
-                    }).toList(),
+                      ),
+                      IconButton(
+                        tooltip: 'Seleccionar fecha',
+                        onPressed: seleccionarFecha,
+                        icon: const Icon(
+                          Icons.calendar_month,
+                          color: verdeCfe,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: tiposInspeccion.contains(
+                      tipoInspeccionController.text,
+                    )
+                        ? tipoInspeccionController.text
+                        : null,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Tipo de inspección',
+                      prefixIcon: Icon(
+                        Icons.assignment_outlined,
+                        color: verdeCfe,
+                      ),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: tiposInspeccion
+                        .map(
+                          (tipo) => DropdownMenuItem(
+                            value: tipo,
+                            child: Text(tipo),
+                          ),
+                        )
+                        .toList(),
                     onChanged: (valor) {
                       setState(() {
-                        zonaSeleccionada = valor;
+                        tipoInspeccionController.text = valor ?? '';
                       });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    initialValue: zonaSeleccionada,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Zona de transmisión',
+                      prefixIcon: Icon(
+                        Icons.location_on_outlined,
+                        color: verdeCfe,
+                      ),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: zonasTransmision
+                        .map(
+                          (zona) => DropdownMenuItem(
+                            value: zona,
+                            child: Text(zona),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (valor) {
+                      setState(() => zonaSeleccionada = valor);
                     },
                   ),
                 ],
@@ -1702,629 +1097,260 @@ void cerrarSesion() {
 
             const SizedBox(height: 12),
 
-            // ========================================================
-            // TABLA DE ANOMALÍAS
-            // ========================================================
-
+            // Tabla de anomalías: cada fila tiene su propio estatus.
             Container(
               decoration: BoxDecoration(
-                border: Border.all(
-                  color: Colors.black,
-                  width: 1,
-                ),
+                border: Border.all(color: Colors.black),
               ),
               child: Column(
                 children: [
-                  Table(
-                    border: TableBorder.all(
-                      color: Colors.black,
-                      width: 1,
-                    ),
-                    columnWidths: const {
-                      0: FlexColumnWidth(1.3),
-                      1: FlexColumnWidth(0.8),
-                      2: FlexColumnWidth(1.8),
-                      3: FlexColumnWidth(1.3),
-                    },
-                    children: const [
-                      TableRow(
-                        decoration: BoxDecoration(
-                          color: Color(0xFFE8E8E8),
-                        ),
-                        children: [
-                          _EncabezadoTabla(
-                            'FECHA DE\nREVISIÓN',
-                          ),
-                          _EncabezadoTabla(
-                            'NO.\nEST.',
-                          ),
-                          _EncabezadoTabla(
-                            'ANOMALÍA\nENCONTRADA',
-                          ),
-                          _EncabezadoTabla(
-                            'FECHA DE\nCORRECCIÓN',
-                          ),
-                        ],
+                  const Padding(
+                    padding: EdgeInsets.all(10),
+                    child: Text(
+                      'ANOMALÍAS POR TORRE',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
-                    ],
+                    ),
                   ),
-
-                  if (filasTorres.isEmpty)
-                    Container(
-                      width: double.infinity,
-                      padding:
-                          const EdgeInsets.all(15),
-                      child: const Text(
-                        'Seleccione una o más torres para '
-                        'mostrar las filas de inspección.',
-                        textAlign:
-                            TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.grey,
-                        ),
+                  const Divider(height: 1, color: Colors.black),
+                  if (filasAnomalias.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.all(15),
+                      child: Text(
+                        'Seleccione una o más torres para mostrar las filas.',
+                        textAlign: TextAlign.center,
                       ),
                     )
                   else
-                    ...filasTorres.map(
-                      (fila) => Table(
-                        border: TableBorder.all(
-                          color: Colors.black,
-                          width: 1,
-                        ),
-                        columnWidths: const {
-                          0: FlexColumnWidth(1.3),
-                          1: FlexColumnWidth(0.8),
-                          2: FlexColumnWidth(1.8),
-                          3: FlexColumnWidth(1.3),
-                        },
-                        children: [
-                          _filaTablaEditable(fila),
-                        ],
-                      ),
+                    ...filasAnomalias.map(
+                      (fila) => _tarjetaAnomalia(fila),
                     ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // Elaboró y Vo. Bo.
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.black),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'ELABORÓ',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: elaboroNombreController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre completo',
+                      prefixIcon: Icon(Icons.person_outline),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: elaboroRpeController,
+                    decoration: const InputDecoration(
+                      labelText: 'RPE',
+                      prefixIcon: Icon(Icons.badge_outlined),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Vo. Bo.',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: voBoNombreController,
+                    decoration: const InputDecoration(
+                      labelText: 'Nombre',
+                      prefixIcon: Icon(Icons.person_outline),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: voBoRpeController,
+                    decoration: const InputDecoration(
+                      labelText: 'RPE',
+                      prefixIcon: Icon(Icons.badge_outlined),
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
                 ],
               ),
             ),
 
             const SizedBox(height: 18),
-
-            // ========================================================
-            // ELABORÓ
-            // ========================================================
-
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                border: Border.all(
-                  color: Colors.black,
-                  width: 1,
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'ELABORÓ:',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller:
-                        elaboroNombreController,
-                    decoration: InputDecoration(
-                      labelText: 'Nombre',
-                      hintText:
-                          'Escriba el nombre completo',
-                      labelStyle:
-                          const TextStyle(
-                        fontSize: 14,
-                      ),
-                      hintStyle:
-                          const TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey,
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.person_outline,
-                        color:
-                            Color(0xFF007A4D),
-                        size: 22,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(5),
-                      ),
-                      focusedBorder:
-                          OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(5),
-                        borderSide:
-                            const BorderSide(
-                          color:
-                              Color(0xFF007A4D),
-                          width: 2,
-                        ),
-                      ),
-                      contentPadding:
-                          const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                    ),
-                    style: const TextStyle(
-                      fontSize: 14,
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  TextField(
-                    controller:
-                        elaboroRpeController,
-                    decoration: InputDecoration(
-                      labelText: 'RPE',
-                      hintText: 'Escriba el RPE',
-                      labelStyle:
-                          const TextStyle(
-                        fontSize: 14,
-                      ),
-                      hintStyle:
-                          const TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey,
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.badge_outlined,
-                        color:
-                            Color(0xFF007A4D),
-                        size: 22,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(5),
-                      ),
-                      focusedBorder:
-                          OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(5),
-                        borderSide:
-                            const BorderSide(
-                          color:
-                              Color(0xFF007A4D),
-                          width: 2,
-                        ),
-                      ),
-                      contentPadding:
-                          const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                    ),
-                    style: const TextStyle(
-                      fontSize: 14,
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  const Text(
-                    'Vo. Bo.',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight:
-                          FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 12),
-
-                  TextField(
-                    controller:
-                        voBoNombreController,
-                    decoration: InputDecoration(
-                      labelText: 'Nombre',
-                      hintText:
-                          'Escriba el nombre completo',
-                      labelStyle:
-                          const TextStyle(
-                        fontSize: 14,
-                      ),
-                      hintStyle:
-                          const TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey,
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.person_outline,
-                        color:
-                            Color(0xFF007A4D),
-                        size: 22,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(5),
-                      ),
-                      focusedBorder:
-                          OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(5),
-                        borderSide:
-                            const BorderSide(
-                          color:
-                              Color(0xFF007A4D),
-                          width: 2,
-                        ),
-                      ),
-                      contentPadding:
-                          const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                    ),
-                    style: const TextStyle(
-                      fontSize: 14,
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  TextField(
-                    controller:
-                        voBoRpeController,
-                    decoration: InputDecoration(
-                      labelText: 'RPE',
-                      hintText: 'Escriba el RPE',
-                      labelStyle:
-                          const TextStyle(
-                        fontSize: 14,
-                      ),
-                      hintStyle:
-                          const TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey,
-                      ),
-                      prefixIcon: const Icon(
-                        Icons.badge_outlined,
-                        color:
-                            Color(0xFF007A4D),
-                        size: 22,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(5),
-                      ),
-                      focusedBorder:
-                          OutlineInputBorder(
-                        borderRadius:
-                            BorderRadius.circular(5),
-                        borderSide:
-                            const BorderSide(
-                          color:
-                              Color(0xFF007A4D),
-                          width: 2,
-                        ),
-                      ),
-                      contentPadding:
-                          const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                    ),
-                    style: const TextStyle(
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // ========================================================
-            // BOTÓN GUARDAR
-            // ========================================================
-
             SizedBox(
               height: 54,
               child: ElevatedButton.icon(
-                onPressed:
-                    guardando
-                        ? null
-                        : guardarInspeccion,
+                onPressed: guardando ? null : guardarInspeccion,
                 icon: guardando
                     ? const SizedBox(
-                        width: 21,
-                        height: 21,
-                        child:
-                            CircularProgressIndicator(
-                          strokeWidth: 2.5,
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
                           color: Colors.white,
+                          strokeWidth: 2.5,
                         ),
                       )
-                    : const Icon(
-                        Icons.save,
-                        size: 23,
-                      ),
+                    : const Icon(Icons.save),
                 label: Text(
-                  guardando
-                      ? 'GUARDANDO...'
-                      : 'GUARDAR INSPECCIÓN',
+                  guardando ? 'GUARDANDO...' : 'GUARDAR INSPECCIÓN',
                   style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      const Color(0xFF007A4D),
+                  backgroundColor: verdeCfe,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor:
-                      Colors.grey,
-                  shape:
-                      RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(6),
-                  ),
                 ),
               ),
             ),
-
             const SizedBox(height: 15),
-
-            const Center(
-              child: Text(
-                'Sistema de Inspecciones CFE',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey,
-                ),
-              ),
+            const Text(
+              'Sistema de Inspecciones CFE',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey),
             ),
-
-            const SizedBox(height: 15),
           ],
         ),
       ),
     );
   }
 
-  // ============================================================
-  // CAMPO FECHA
-  // ============================================================
+  Widget _tarjetaAnomalia(_FilaAnomalia fila) {
+    final cantidadDeEstaTorre =
+        filasAnomalias.where((item) => item.torre == fila.torre).length;
 
-  Widget _campoFecha() {
+    final numeroDeFila = filasAnomalias
+            .where((item) => item.torre == fila.torre)
+            .toList()
+            .indexOf(fila) +
+        1;
+
     return Container(
-      padding:
-          const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.end,
+      padding: const EdgeInsets.all(10),
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: Colors.black26),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            'FECHA:',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(width: 5),
-          Expanded(
-            child: Container(
-              padding:
-                  const EdgeInsets.only(bottom: 2),
-              decoration:
-                  const BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: Colors.black,
-                    width: 1,
+          Row(
+            children: [
+              const Icon(
+                Icons.electrical_services,
+                color: verdeCfe,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '${fila.torre} · Anomalía $numeroDeFila',
+                  style: const TextStyle(
+                    color: verdeCfe,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
                   ),
                 ),
               ),
-              child: Text(
-                formatearFecha(
-                    fechaSeleccionada ??
-                        DateTime.now()),
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: Colors.black,
+              IconButton(
+                tooltip: 'Agregar anomalía a ${fila.torre}',
+                onPressed: () => agregarAnomalia(fila.torre),
+                icon: const Icon(
+                  Icons.add_circle,
+                  color: verdeCfe,
+                  size: 28,
                 ),
+              ),
+              if (cantidadDeEstaTorre > 1)
+                IconButton(
+                  tooltip: 'Eliminar esta anomalía',
+                  onPressed: () => eliminarAnomalia(fila),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    color: Colors.red,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          InkWell(
+            onTap: () => seleccionarFechaRevision(fila),
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Fecha de revisión',
+                prefixIcon: Icon(
+                  Icons.calendar_month,
+                  color: verdeCfe,
+                ),
+                border: OutlineInputBorder(),
+              ),
+              child: Text(fila.fechaRevisionController.text),
+            ),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: fila.anomaliaController,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              labelText: 'Anomalía encontrada',
+              hintText: 'Ej. Nido de aves, corrosión...',
+              prefixIcon: Icon(
+                Icons.warning_amber_outlined,
+                color: verdeCfe,
+              ),
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: () => seleccionarFechaCorreccion(fila),
+            child: InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Estatus de corrección',
+                prefixIcon: Icon(
+                  Icons.fact_check_outlined,
+                  color: verdeCfe,
+                ),
+                border: OutlineInputBorder(),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      fila.fechaCorreccionController.text.isEmpty
+                          ? 'Seleccione estatus'
+                          : fila.fechaCorreccionController.text,
+                      style: TextStyle(
+                        color:
+                            fila.fechaCorreccionController.text.isEmpty
+                                ? Colors.grey
+                                : verdeCfe,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.arrow_drop_down),
+                ],
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // FILA DE LA TABLA
-  // ============================================================
-
-  TableRow _filaTablaEditable(
-    _FilaTorre fila,
-  ) {
-    return TableRow(
-      children: [
-        _celdaFecha(
-          texto:
-              fila.fechaRevisionController.text,
-          hint: _fechaHoyFormateada(),
-          onTap: () =>
-              seleccionarFechaRevision(fila),
-          mostrarCalendario: true,
-        ),
-
-        Container(
-          height: 55,
-          alignment: Alignment.center,
-          padding: const EdgeInsets.all(3),
-          child: Text(
-            fila.torre,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF007A4D),
-            ),
-          ),
-        ),
-
-        _celdaEditable(
-          fila.anomaliaController,
-          'Escriba la anomalía',
-          maxLines: 3,
-          keyboardType:
-              TextInputType.multiline,
-        ),
-
-        _celdaFecha(
-          texto:
-              fila.fechaCorreccionController.text,
-          hint: 'SELECCIONE ESTATUS',
-          onTap: () =>
-              seleccionarFechaCorreccion(fila),
-          mostrarCalendario: false,
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // CELDA DE FECHA
-  // ============================================================
-
-  Widget _celdaFecha({
-    required String texto,
-    required String hint,
-    required VoidCallback onTap,
-    bool mostrarCalendario = true,
-  }) {
-    final bool tieneTexto =
-        texto.trim().isNotEmpty;
-
-    final bool esPendiente =
-        texto.trim().isNotEmpty;
-
-    return SizedBox(
-      height: 55,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding:
-                const EdgeInsets.all(3),
-            child: Row(
-              mainAxisAlignment:
-                  MainAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Text(
-                    tieneTexto
-                        ? texto
-                        : hint,
-                    textAlign:
-                        TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight:
-                          esPendiente
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                      color: tieneTexto
-                          ? (esPendiente
-                              ? const Color(
-                                  0xFF007A4D)
-                              : Colors.black)
-                          : Colors.grey,
-                    ),
-                  ),
-                ),
-                if (mostrarCalendario)
-                  const Icon(
-                    Icons.calendar_month,
-                    size: 18,
-                    color:
-                        Color(0xFF007A4D),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // CELDA EDITABLE
-  // ============================================================
-
-  Widget _celdaEditable(
-    TextEditingController controller,
-    String hint, {
-    int maxLines = 1,
-    TextInputType keyboardType =
-        TextInputType.text,
-  }) {
-    return SizedBox(
-      height: maxLines > 1 ? 70 : 55,
-      child: Padding(
-        padding: const EdgeInsets.all(3),
-        child: TextField(
-          controller: controller,
-          maxLines: maxLines,
-          keyboardType: keyboardType,
-          textAlign: TextAlign.center,
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: const TextStyle(
-              fontSize: 13,
-              color: Colors.grey,
-            ),
-            border: InputBorder.none,
-            contentPadding:
-                const EdgeInsets.all(3),
-          ),
-          style: const TextStyle(
-            fontSize: 13,
-            color: Colors.black,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ============================================================
-// ENCABEZADO DE TABLA
-// ============================================================
-
-class _EncabezadoTabla extends StatelessWidget {
-  final String texto;
-
-  const _EncabezadoTabla(this.texto);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(5),
-      child: Text(
-        texto,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.bold,
-        ),
       ),
     );
   }

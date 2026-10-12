@@ -1,3 +1,4 @@
+
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -32,7 +33,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -45,10 +46,7 @@ class DatabaseHelper {
   // CREAR BASE DE DATOS
   // ============================================================
 
-  Future<void> _createDB(
-    Database db,
-    int version,
-  ) async {
+  Future<void> _createDB(Database db, int version) async {
     await db.execute('''
       CREATE TABLE inspecciones (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,6 +71,29 @@ class DatabaseHelper {
         FOREIGN KEY (inspeccion_id)
           REFERENCES inspecciones (id)
           ON DELETE CASCADE
+      )
+    ''');
+
+    await _crearTablaUsuarios(db);
+  }
+
+  // ============================================================
+  // CREAR TABLA DE USUARIOS
+  // ============================================================
+
+  Future<void> _crearTablaUsuarios(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS usuarios (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        usuario TEXT NOT NULL COLLATE NOCASE UNIQUE,
+        nombre TEXT NOT NULL,
+        rpe TEXT,
+        contrasena_hash TEXT NOT NULL,
+        rol TEXT NOT NULL DEFAULT 'usuario'
+          CHECK (rol IN ('administrador', 'usuario')),
+        activo INTEGER NOT NULL DEFAULT 1,
+        debe_cambiar_contrasena INTEGER NOT NULL DEFAULT 1,
+        fecha_creacion TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     ''');
   }
@@ -106,9 +127,7 @@ class DatabaseHelper {
       );
 
       final nombresColumnas = columnas
-          .map(
-            (columna) => columna['name'] as String,
-          )
+          .map((columna) => columna['name'] as String)
           .toSet();
 
       if (!nombresColumnas.contains('linea_transmision')) {
@@ -153,10 +172,210 @@ class DatabaseHelper {
         ''');
       }
     }
+
+    if (oldVersion < 3) {
+      await _crearTablaUsuarios(db);
+    }
   }
 
   // ============================================================
-  // INSERTAR UNA INSPECCIÓN
+  // USUARIOS: CREAR
+  // Recibe contrasena_hash, nunca la contraseña original.
+  // ============================================================
+
+  Future<int> crearUsuario(Map<String, dynamic> datos) async {
+    final db = await database;
+
+    final usuario = Map<String, dynamic>.from(datos);
+
+    usuario['usuario'] =
+        (usuario['usuario'] as String).trim();
+
+    usuario['nombre'] =
+        (usuario['nombre'] as String).trim();
+
+    return await db.insert(
+      'usuarios',
+      usuario,
+      conflictAlgorithm: ConflictAlgorithm.abort,
+    );
+  }
+
+  // ============================================================
+  // USUARIOS: BUSCAR POR NOMBRE
+  // ============================================================
+
+  Future<Map<String, dynamic>?> obtenerUsuarioPorNombre(
+    String usuario,
+  ) async {
+    final db = await database;
+
+    final resultado = await db.query(
+      'usuarios',
+      where: 'usuario = ?',
+      whereArgs: [usuario.trim()],
+      limit: 1,
+    );
+
+    if (resultado.isEmpty) {
+      return null;
+    }
+
+    return resultado.first;
+  }
+
+  // ============================================================
+  // USUARIOS: CONSULTAR SIN EXPONER HASHES
+  // ============================================================
+
+  Future<List<Map<String, dynamic>>> obtenerUsuarios() async {
+    final db = await database;
+
+    return await db.query(
+      'usuarios',
+      columns: [
+        'id',
+        'usuario',
+        'nombre',
+        'rpe',
+        'rol',
+        'activo',
+        'debe_cambiar_contrasena',
+        'fecha_creacion',
+      ],
+      orderBy: 'nombre COLLATE NOCASE ASC',
+    );
+  }
+
+  // ============================================================
+  // USUARIOS: ACTUALIZAR DATOS
+  // ============================================================
+
+  Future<int> actualizarUsuario(
+    int id,
+    Map<String, dynamic> datos,
+  ) async {
+    final db = await database;
+
+    final cambios = Map<String, dynamic>.from(datos);
+
+    cambios.remove('id');
+    cambios.remove('contrasena_hash');
+    cambios.remove('fecha_creacion');
+
+    if (cambios.containsKey('usuario')) {
+      cambios['usuario'] =
+          (cambios['usuario'] as String).trim();
+    }
+
+    if (cambios.containsKey('nombre')) {
+      cambios['nombre'] =
+          (cambios['nombre'] as String).trim();
+    }
+
+    return await db.update(
+      'usuarios',
+      cambios,
+      where: 'id = ?',
+      whereArgs: [id],
+      conflictAlgorithm: ConflictAlgorithm.abort,
+    );
+  }
+
+  // ============================================================
+  // USUARIOS: CAMBIAR CONTRASEÑA
+  // ============================================================
+
+  Future<int> cambiarContrasenaUsuario(
+    int id,
+    String contrasenaHash, {
+    bool exigirCambio = false,
+  }) async {
+    final db = await database;
+
+    return await db.update(
+      'usuarios',
+      {
+        'contrasena_hash': contrasenaHash,
+        'debe_cambiar_contrasena':
+            exigirCambio ? 1 : 0,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // ============================================================
+  // USUARIOS: ACTIVAR O DESACTIVAR
+  // ============================================================
+
+  Future<int> cambiarEstadoUsuario(
+    int id,
+    bool activo,
+  ) async {
+    final db = await database;
+
+    return await db.update(
+      'usuarios',
+      {'activo': activo ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // ============================================================
+  // USUARIOS: ELIMINAR
+  // Esta función solo realiza el borrado local.
+  // La autorización debe comprobarse en la pantalla
+  // administrativa antes de invocarla.
+  // ============================================================
+
+  Future<int> eliminarUsuario(int id) async {
+    final db = await database;
+
+    return await db.delete(
+      'usuarios',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  // ============================================================
+  // COMPROBAR ADMINISTRADOR ACTIVO
+  // ============================================================
+
+  Future<bool> existeAdministrador() async {
+    final db = await database;
+
+    final resultado = await db.query(
+      'usuarios',
+      columns: ['id'],
+      where: 'rol = ? AND activo = ?',
+      whereArgs: ['administrador', 1],
+      limit: 1,
+    );
+
+    return resultado.isNotEmpty;
+  }
+
+  // ============================================================
+  // COMPROBAR SI EXISTEN USUARIOS
+  // ============================================================
+
+  Future<bool> existenUsuarios() async {
+    final db = await database;
+
+    final resultado = await db.rawQuery(
+      'SELECT COUNT(*) AS total FROM usuarios',
+    );
+
+    final total = resultado.first['total'] as int;
+
+    return total > 0;
+  }
+
+  // ============================================================
+  // INSPECCIONES: INSERTAR
   // ============================================================
 
   Future<int> insertarInspeccion(
@@ -164,14 +383,11 @@ class DatabaseHelper {
   ) async {
     final db = await database;
 
-    return await db.insert(
-      'inspecciones',
-      inspeccion,
-    );
+    return await db.insert('inspecciones', inspeccion);
   }
 
   // ============================================================
-  // INSERTAR UNA ANOMALÍA
+  // ANOMALÍAS: INSERTAR UNA
   // ============================================================
 
   Future<int> insertarAnomalia(
@@ -179,14 +395,24 @@ class DatabaseHelper {
   ) async {
     final db = await database;
 
-    return await db.insert(
-      'anomalias',
-      anomalia,
-    );
+    final id = await db.insert('anomalias', anomalia);
+
+    final inspeccionId = anomalia['inspeccion_id'];
+
+    if (inspeccionId != null) {
+      await db.update(
+        'inspecciones',
+        {'sincronizado': 0},
+        where: 'id = ?',
+        whereArgs: [inspeccionId],
+      );
+    }
+
+    return id;
   }
 
   // ============================================================
-  // GUARDAR INSPECCIÓN COMPLETA
+  // GUARDAR INSPECCIÓN COMPLETA CON VARIAS ANOMALÍAS
   // ============================================================
 
   Future<int> guardarInspeccionCompleta({
@@ -195,36 +421,28 @@ class DatabaseHelper {
   }) async {
     final db = await database;
 
-    return await db.transaction<int>(
-      (txn) async {
-        final inspeccionId = await txn.insert(
-          'inspecciones',
-          inspeccion,
-        );
+    return await db.transaction<int>((txn) async {
+      final inspeccionId = await txn.insert(
+        'inspecciones',
+        inspeccion,
+      );
 
-        for (final anomalia in anomalias) {
-          final datosAnomalia =
-              Map<String, dynamic>.from(anomalia);
+      for (final anomalia in anomalias) {
+        final datosAnomalia =
+            Map<String, dynamic>.from(anomalia);
 
-          datosAnomalia['inspeccion_id'] =
-              inspeccionId;
+        datosAnomalia.remove('id');
+        datosAnomalia['inspeccion_id'] = inspeccionId;
 
-          await txn.insert(
-            'anomalias',
-            datosAnomalia,
-          );
-        }
+        await txn.insert('anomalias', datosAnomalia);
+      }
 
-        return inspeccionId;
-      },
-    );
+      return inspeccionId;
+    });
   }
 
   // ============================================================
   // ACTUALIZAR INSPECCIÓN COMPLETA
-  //
-  // Se utiliza cuando el usuario edita una inspección guardada.
-  // Actualiza los datos generales y reemplaza las anomalías.
   // ============================================================
 
   Future<void> actualizarInspeccionCompleta({
@@ -234,70 +452,42 @@ class DatabaseHelper {
   }) async {
     final db = await database;
 
-    await db.transaction(
-      (txn) async {
-        // ======================================================
-        // ACTUALIZAR INFORMACIÓN GENERAL
-        // ======================================================
+    await db.transaction((txn) async {
+      final datosInspeccion =
+          Map<String, dynamic>.from(inspeccion);
 
-        await txn.update(
-          'inspecciones',
-          inspeccion,
-          where: 'id = ?',
-          whereArgs: [inspeccionId],
-        );
+      datosInspeccion.remove('id');
+      datosInspeccion['sincronizado'] = 0;
 
-        // ======================================================
-        // ELIMINAR ANOMALÍAS ANTERIORES
-        // ======================================================
+      await txn.update(
+        'inspecciones',
+        datosInspeccion,
+        where: 'id = ?',
+        whereArgs: [inspeccionId],
+      );
 
-        await txn.delete(
-          'anomalias',
-          where: 'inspeccion_id = ?',
-          whereArgs: [inspeccionId],
-        );
+      await txn.delete(
+        'anomalias',
+        where: 'inspeccion_id = ?',
+        whereArgs: [inspeccionId],
+      );
 
-        // ======================================================
-        // GUARDAR LAS NUEVAS ANOMALÍAS
-        // ======================================================
+      for (final anomalia in anomalias) {
+        final datos = Map<String, dynamic>.from(anomalia);
 
-        for (final anomalia in anomalias) {
-          final datos =
-              Map<String, dynamic>.from(anomalia);
+        datos.remove('id');
+        datos['inspeccion_id'] = inspeccionId;
 
-          datos.remove('id');
-
-          datos['inspeccion_id'] =
-              inspeccionId;
-
-          await txn.insert(
-            'anomalias',
-            datos,
-          );
-        }
-
-        // ======================================================
-        // AL EDITAR, LA INSPECCIÓN DEBE VOLVER A SINCRONIZARSE
-        // ======================================================
-
-        await txn.update(
-          'inspecciones',
-          {
-            'sincronizado': 0,
-          },
-          where: 'id = ?',
-          whereArgs: [inspeccionId],
-        );
-      },
-    );
+        await txn.insert('anomalias', datos);
+      }
+    });
   }
 
   // ============================================================
   // OBTENER TODAS LAS INSPECCIONES
   // ============================================================
 
-  Future<List<Map<String, dynamic>>>
-      obtenerInspecciones() async {
+  Future<List<Map<String, dynamic>>> obtenerInspecciones() async {
     final db = await database;
 
     return await db.query(
@@ -307,7 +497,7 @@ class DatabaseHelper {
   }
 
   // ============================================================
-  // OBTENER ANOMALÍAS
+  // OBTENER ANOMALÍAS DE UNA INSPECCIÓN
   // ============================================================
 
   Future<List<Map<String, dynamic>>> obtenerAnomalias(
@@ -353,15 +543,13 @@ class DatabaseHelper {
   Future<Map<String, dynamic>?> obtenerInspeccionCompleta(
     int inspeccionId,
   ) async {
-    final inspeccion =
-        await obtenerInspeccion(inspeccionId);
+    final inspeccion = await obtenerInspeccion(inspeccionId);
 
     if (inspeccion == null) {
       return null;
     }
 
-    final anomalias =
-        await obtenerAnomalias(inspeccionId);
+    final anomalias = await obtenerAnomalias(inspeccionId);
 
     return {
       'inspeccion': inspeccion,
@@ -376,39 +564,26 @@ class DatabaseHelper {
   Future<Map<String, dynamic>?> obtenerDatosParaExcel(
     int inspeccionId,
   ) async {
-    final datos =
-        await obtenerInspeccionCompleta(
-      inspeccionId,
-    );
+    final datos = await obtenerInspeccionCompleta(inspeccionId);
 
     if (datos == null) {
       return null;
     }
 
     final inspeccion =
-        Map<String, dynamic>.from(
-      datos['inspeccion'],
-    );
+        Map<String, dynamic>.from(datos['inspeccion']);
 
     final anomalias =
-        List<Map<String, dynamic>>.from(
-      datos['anomalias'],
-    );
+        List<Map<String, dynamic>>.from(datos['anomalias']);
 
     return {
       'id': inspeccion['id'],
-      'fecha_inspeccion':
-          inspeccion['fecha_inspeccion'],
-      'linea_transmision':
-          inspeccion['linea_transmision'],
-      'zona_transmision':
-          inspeccion['zona_transmision'],
-      'tipo_inspeccion':
-          inspeccion['tipo_inspeccion'],
-      'elaboro':
-          inspeccion['elaboro'],
-      'visto_bueno':
-          inspeccion['visto_bueno'],
+      'fecha_inspeccion': inspeccion['fecha_inspeccion'],
+      'linea_transmision': inspeccion['linea_transmision'],
+      'zona_transmision': inspeccion['zona_transmision'],
+      'tipo_inspeccion': inspeccion['tipo_inspeccion'],
+      'elaboro': inspeccion['elaboro'],
+      'visto_bueno': inspeccion['visto_bueno'],
       'anomalias': anomalias,
     };
   }
@@ -423,88 +598,51 @@ class DatabaseHelper {
   ) async {
     final db = await database;
 
-    final resultado = await db.update(
-      'anomalias',
-      datos,
-      where: 'id = ?',
-      whereArgs: [anomaliaId],
-    );
+    final cambios = Map<String, dynamic>.from(datos);
+    cambios.remove('id');
+    cambios.remove('inspeccion_id');
 
-    // ==========================================================
-    // BUSCAR LA INSPECCIÓN DE LA ANOMALÍA
-    // Y MARCARLA COMO PENDIENTE DE SINCRONIZACIÓN
-    // ==========================================================
-
-    final anomalia = await db.query(
-      'anomalias',
-      columns: ['inspeccion_id'],
-      where: 'id = ?',
-      whereArgs: [anomaliaId],
-      limit: 1,
-    );
-
-    if (anomalia.isNotEmpty) {
-      await db.update(
-        'inspecciones',
-        {
-          'sincronizado': 0,
-        },
+    return await db.transaction<int>((txn) async {
+      final resultado = await txn.update(
+        'anomalias',
+        cambios,
         where: 'id = ?',
-        whereArgs: [
-          anomalia.first['inspeccion_id'],
-        ],
+        whereArgs: [anomaliaId],
       );
-    }
 
-    return resultado;
+      final anomalia = await txn.query(
+        'anomalias',
+        columns: ['inspeccion_id'],
+        where: 'id = ?',
+        whereArgs: [anomaliaId],
+        limit: 1,
+      );
+
+      if (anomalia.isNotEmpty) {
+        await txn.update(
+          'inspecciones',
+          {'sincronizado': 0},
+          where: 'id = ?',
+          whereArgs: [anomalia.first['inspeccion_id']],
+        );
+      }
+
+      return resultado;
+    });
   }
 
   // ============================================================
-  // ACTUALIZAR FECHA DE CORRECCIÓN
+  // ACTUALIZAR FECHA / ESTATUS DE CORRECCIÓN
   // ============================================================
 
   Future<int> actualizarFechaCorreccion(
     int anomaliaId,
     String fechaCorreccion,
   ) async {
-    final db = await database;
-
-    final resultado = await db.update(
-      'anomalias',
-      {
-        'fecha_correccion': fechaCorreccion,
-      },
-      where: 'id = ?',
-      whereArgs: [anomaliaId],
+    return await actualizarAnomalia(
+      anomaliaId,
+      {'fecha_correccion': fechaCorreccion},
     );
-
-    // ==========================================================
-    // LA INSPECCIÓN VUELVE A QUEDAR PENDIENTE
-    // DE SINCRONIZACIÓN
-    // ==========================================================
-
-    final anomalia = await db.query(
-      'anomalias',
-      columns: ['inspeccion_id'],
-      where: 'id = ?',
-      whereArgs: [anomaliaId],
-      limit: 1,
-    );
-
-    if (anomalia.isNotEmpty) {
-      await db.update(
-        'inspecciones',
-        {
-          'sincronizado': 0,
-        },
-        where: 'id = ?',
-        whereArgs: [
-          anomalia.first['inspeccion_id'],
-        ],
-      );
-    }
-
-    return resultado;
   }
 
   // ============================================================
@@ -534,9 +672,7 @@ class DatabaseHelper {
 
     return await db.update(
       'inspecciones',
-      {
-        'sincronizado': 1,
-      },
+      {'sincronizado': 1},
       where: 'id = ?',
       whereArgs: [inspeccionId],
     );
@@ -546,15 +682,32 @@ class DatabaseHelper {
   // ELIMINAR UNA INSPECCIÓN
   // ============================================================
 
-  Future<int> eliminarInspeccion(
-    int id,
-  ) async {
+  Future<int> eliminarInspeccion(int id) async {
     final db = await database;
 
     return await db.delete(
       'inspecciones',
       where: 'id = ?',
       whereArgs: [id],
+    );
+  }
+
+  // ============================================================
+  // ASIGNAR ROL DE ADMINISTRADOR A LA CUENTA EXISTENTE
+  // No cambia la contraseña ni crea otra cuenta.
+  // ============================================================
+
+  Future<int> asignarRolAdministradorCfe() async {
+    final db = await database;
+
+    return await db.update(
+      'usuarios',
+      {
+        'rol': 'administrador',
+        'activo': 1,
+      },
+      where: 'usuario = ?',
+      whereArgs: ['ADMIN_CFE'],
     );
   }
 
