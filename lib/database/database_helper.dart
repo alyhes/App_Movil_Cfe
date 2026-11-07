@@ -33,7 +33,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
@@ -54,6 +54,8 @@ class DatabaseHelper {
         linea_transmision TEXT NOT NULL,
         zona_transmision TEXT NOT NULL,
         tipo_inspeccion TEXT NOT NULL,
+        tipo_torre TEXT,
+        tipo_cimentacion TEXT,
         elaboro TEXT NOT NULL,
         visto_bueno TEXT,
         sincronizado INTEGER NOT NULL DEFAULT 0
@@ -176,11 +178,34 @@ class DatabaseHelper {
     if (oldVersion < 3) {
       await _crearTablaUsuarios(db);
     }
+
+    if (oldVersion < 4) {
+      final columnas = await db.rawQuery(
+        'PRAGMA table_info(inspecciones)',
+      );
+
+      final nombresColumnas = columnas
+          .map((columna) => columna['name'] as String)
+          .toSet();
+
+      if (!nombresColumnas.contains('tipo_torre')) {
+        await db.execute('''
+          ALTER TABLE inspecciones
+          ADD COLUMN tipo_torre TEXT
+        ''');
+      }
+
+      if (!nombresColumnas.contains('tipo_cimentacion')) {
+        await db.execute('''
+          ALTER TABLE inspecciones
+          ADD COLUMN tipo_cimentacion TEXT
+        ''');
+      }
+    }
   }
 
   // ============================================================
   // USUARIOS: CREAR
-  // Recibe contrasena_hash, nunca la contraseña original.
   // ============================================================
 
   Future<int> crearUsuario(Map<String, dynamic> datos) async {
@@ -325,9 +350,6 @@ class DatabaseHelper {
 
   // ============================================================
   // USUARIOS: ELIMINAR
-  // Esta función solo realiza el borrado local.
-  // La autorización debe comprobarse en la pantalla
-  // administrativa antes de invocarla.
   // ============================================================
 
   Future<int> eliminarUsuario(int id) async {
@@ -582,6 +604,8 @@ class DatabaseHelper {
       'linea_transmision': inspeccion['linea_transmision'],
       'zona_transmision': inspeccion['zona_transmision'],
       'tipo_inspeccion': inspeccion['tipo_inspeccion'],
+      'tipo_torre': inspeccion['tipo_torre'],
+      'tipo_cimentacion': inspeccion['tipo_cimentacion'],
       'elaboro': inspeccion['elaboro'],
       'visto_bueno': inspeccion['visto_bueno'],
       'anomalias': anomalias,
@@ -694,7 +718,6 @@ class DatabaseHelper {
 
   // ============================================================
   // ASIGNAR ROL DE ADMINISTRADOR A LA CUENTA EXISTENTE
-  // No cambia la contraseña ni crea otra cuenta.
   // ============================================================
 
   Future<int> asignarRolAdministradorCfe() async {

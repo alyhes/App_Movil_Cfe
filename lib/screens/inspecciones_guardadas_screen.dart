@@ -15,14 +15,9 @@ class InspeccionesGuardadasScreen extends StatefulWidget {
       _InspeccionesGuardadasScreenState();
 }
 
-// ============================================================
-// ESTADO
-// ============================================================
-
 class _InspeccionesGuardadasScreenState
     extends State<InspeccionesGuardadasScreen> {
   final DatabaseHelper db = DatabaseHelper.instance;
-
   final SyncService syncService = SyncService();
 
   List<Map<String, dynamic>> inspecciones = [];
@@ -34,10 +29,10 @@ class _InspeccionesGuardadasScreenState
   DateTime? fechaFiltro;
 
   bool ordenDescendente = true;
+  bool sincronizando = false;
+  bool exportandoLote = false;
 
   int? exportandoId;
-
-  bool sincronizando = false;
 
   // ==========================================================
   // INICIAR
@@ -75,21 +70,14 @@ class _InspeccionesGuardadasScreenState
   // ==========================================================
 
   Future<void> sincronizarConServidor() async {
-    if (sincronizando) {
-      return;
-    }
+    if (sincronizando) return;
 
     setState(() {
       sincronizando = true;
     });
 
     try {
-      // ======================================================
-      // COMPROBAR CONEXIÓN CON FASTAPI
-      // ======================================================
-
-      final conexion =
-          await syncService.comprobarConexion();
+      final conexion = await syncService.comprobarConexion();
 
       if (!conexion) {
         if (!mounted) return;
@@ -107,45 +95,30 @@ class _InspeccionesGuardadasScreenState
         return;
       }
 
-      // ======================================================
-      // SINCRONIZAR INSPECCIONES
-      // ======================================================
-
       final resultado =
           await syncService.sincronizarInspecciones();
 
       if (!mounted) return;
 
-      final bool exito =
-          resultado['exito'] == true;
-
-      final int enviadas =
-          resultado['enviadas'] ?? 0;
-
-      final int errores =
-          resultado['errores'] ?? 0;
+      final bool exito = resultado['exito'] == true;
+      final int enviadas = resultado['enviadas'] ?? 0;
+      final int errores = resultado['errores'] ?? 0;
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             exito
                 ? 'Sincronización completada.\n'
-                  'Inspecciones enviadas: $enviadas'
+                    'Inspecciones enviadas: $enviadas'
                 : 'Sincronización con errores.\n'
-                  'Enviadas: $enviadas | '
-                  'Errores: $errores',
+                    'Enviadas: $enviadas | Errores: $errores',
           ),
-          backgroundColor:
-              exito
-                  ? const Color(0xFF007A4D)
-                  : Colors.orange,
+          backgroundColor: exito
+              ? const Color(0xFF007A4D)
+              : Colors.orange,
           duration: const Duration(seconds: 5),
         ),
       );
-
-      // ======================================================
-      // ACTUALIZAR LISTA
-      // ======================================================
 
       await cargarInspecciones();
     } catch (e) {
@@ -200,13 +173,10 @@ class _InspeccionesGuardadasScreenState
   // ==========================================================
 
   void aplicarFiltros() {
-    final texto =
-        buscadorController.text.trim().toLowerCase();
+    final texto = buscadorController.text.trim().toLowerCase();
 
     List<Map<String, dynamic>> resultado =
-        List<Map<String, dynamic>>.from(
-      inspecciones,
-    );
+        List<Map<String, dynamic>>.from(inspecciones);
 
     if (texto.isNotEmpty) {
       resultado = resultado.where((inspeccion) {
@@ -230,6 +200,16 @@ class _InspeccionesGuardadasScreenState
                 .toString()
                 .toLowerCase();
 
+        final tipoTorre =
+            (inspeccion['tipo_torre'] ?? '')
+                .toString()
+                .toLowerCase();
+
+        final tipoCimentacion =
+            (inspeccion['tipo_cimentacion'] ?? '')
+                .toString()
+                .toLowerCase();
+
         final elaboro =
             (inspeccion['elaboro'] ?? '')
                 .toString()
@@ -244,6 +224,8 @@ class _InspeccionesGuardadasScreenState
             linea.contains(texto) ||
             zona.contains(texto) ||
             tipo.contains(texto) ||
+            tipoTorre.contains(texto) ||
+            tipoCimentacion.contains(texto) ||
             elaboro.contains(texto) ||
             vistoBueno.contains(texto);
       }).toList();
@@ -255,9 +237,7 @@ class _InspeccionesGuardadasScreenState
           inspeccion['fecha_inspeccion']?.toString(),
         );
 
-        if (fecha == null) {
-          return false;
-        }
+        if (fecha == null) return false;
 
         return fecha.year == fechaFiltro!.year &&
             fecha.month == fechaFiltro!.month &&
@@ -274,24 +254,13 @@ class _InspeccionesGuardadasScreenState
         b['fecha_inspeccion']?.toString(),
       );
 
-      if (fechaA == null && fechaB == null) {
-        return 0;
-      }
+      if (fechaA == null && fechaB == null) return 0;
+      if (fechaA == null) return 1;
+      if (fechaB == null) return -1;
 
-      if (fechaA == null) {
-        return 1;
-      }
+      final comparacion = fechaA.compareTo(fechaB);
 
-      if (fechaB == null) {
-        return -1;
-      }
-
-      final comparacion =
-          fechaA.compareTo(fechaB);
-
-      return ordenDescendente
-          ? -comparacion
-          : comparacion;
+      return ordenDescendente ? -comparacion : comparacion;
     });
 
     if (!mounted) return;
@@ -302,7 +271,7 @@ class _InspeccionesGuardadasScreenState
   }
 
   // ==========================================================
-  // EXPORTAR A EXCEL
+  // EXPORTAR UNA INSPECCIÓN
   // ==========================================================
 
   Future<void> exportarAExcel(
@@ -310,9 +279,7 @@ class _InspeccionesGuardadasScreenState
   ) async {
     final int id = inspeccion['id'];
 
-    if (exportandoId != null) {
-      return;
-    }
+    if (exportandoId != null || exportandoLote) return;
 
     setState(() {
       exportandoId = id;
@@ -340,7 +307,7 @@ class _InspeccionesGuardadasScreenState
               'No se pudo generar el archivo Excel.\n$e',
             ),
             backgroundColor: Colors.red,
-            duration: Duration(seconds: 5),
+            duration: const Duration(seconds: 5),
           ),
         );
       }
@@ -354,20 +321,188 @@ class _InspeccionesGuardadasScreenState
   }
 
   // ==========================================================
-  // SELECCIONAR DÍA
+  // EXPORTAR INSPECCIONES POR DÍA
   // ==========================================================
 
-  Future<void> seleccionarDia() async {
-    final DateTime? fecha =
-        await showDatePicker(
+  Future<void> exportarExcelPorDia() async {
+    if (exportandoLote || exportandoId != null) return;
+
+    final DateTime? fecha = await showDatePicker(
       context: context,
-      initialDate:
-          fechaFiltro ?? DateTime.now(),
+      initialDate: fechaFiltro ?? DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
       locale: const Locale('es', 'MX'),
-      helpText:
-          'BUSCAR INSPECCIONES DEL DÍA',
+      helpText: 'SELECCIONAR DÍA PARA EXPORTAR',
+      cancelText: 'CANCELAR',
+      confirmText: 'ACEPTAR',
+    );
+
+    if (!mounted || fecha == null) return;
+
+    setState(() {
+      exportandoLote = true;
+    });
+
+    try {
+      await ExcelExportService.exportarInspeccionesPorDia(fecha);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Excel del día ${formatearFecha(fecha)} generado correctamente.',
+          ),
+          backgroundColor: const Color(0xFF007A4D),
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'No se pudo generar el Excel del día.\n$e',
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          exportandoLote = false;
+        });
+      }
+    }
+  }
+
+  // ==========================================================
+  // EXPORTAR INSPECCIONES POR MES
+  // ==========================================================
+
+
+Future<void> exportarExcelPorMes() async {
+  final meses = [
+    'Enero',
+    'Febrero',
+    'Marzo',
+    'Abril',
+    'Mayo',
+    'Junio',
+    'Julio',
+    'Agosto',
+    'Septiembre',
+    'Octubre',
+    'Noviembre',
+    'Diciembre',
+  ];
+
+  final mesSeleccionado = await showDialog<int>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Seleccionar mes'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: GridView.builder(
+            shrinkWrap: true,
+            itemCount: 12,
+            gridDelegate:
+                const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: 8,
+              mainAxisSpacing: 8,
+              childAspectRatio: 2,
+            ),
+            itemBuilder: (context, index) {
+              return OutlinedButton(
+                onPressed: () {
+                  Navigator.pop(context, index + 1);
+                },
+                child: Text(meses[index]),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+        ],
+      );
+    },
+  );
+
+  if (mesSeleccionado == null) return;
+
+  try {
+    final anioActual = DateTime.now().year;
+
+        await ExcelExportService.exportarInspeccionesPorMes(
+      anioActual,
+      mesSeleccionado,
+    );
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'Excel de ${meses[mesSeleccionado - 1]} '
+          'de $anioActual generado correctamente.',
+        ),
+      ),
+    );
+  } catch (e) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Error al generar Excel: $e'),
+      ),
+    );
+  }
+}
+
+  // ==========================================================
+  // NOMBRE DEL MES
+  // ==========================================================
+
+  String nombreMes(int mes) {
+    const meses = [
+      'enero',
+      'febrero',
+      'marzo',
+      'abril',
+      'mayo',
+      'junio',
+      'julio',
+      'agosto',
+      'septiembre',
+      'octubre',
+      'noviembre',
+      'diciembre',
+    ];
+
+    return meses[mes - 1];
+  }
+
+  // ==========================================================
+  // SELECCIONAR DÍA PARA FILTRAR
+  // ==========================================================
+
+  Future<void> seleccionarDia() async {
+    final DateTime? fecha = await showDatePicker(
+      context: context,
+      initialDate: fechaFiltro ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      locale: const Locale('es', 'MX'),
+      helpText: 'BUSCAR INSPECCIONES DEL DÍA',
       cancelText: 'CANCELAR',
       confirmText: 'ACEPTAR',
     );
@@ -401,8 +536,7 @@ class _InspeccionesGuardadasScreenState
 
   void cambiarOrden() {
     setState(() {
-      ordenDescendente =
-          !ordenDescendente;
+      ordenDescendente = !ordenDescendente;
     });
 
     aplicarFiltros();
@@ -419,7 +553,7 @@ class _InspeccionesGuardadasScreenState
   }
 
   // ==========================================================
-  // ELIMINAR
+  // ELIMINAR INSPECCIÓN
   // ==========================================================
 
   Future<void> eliminarInspeccion(
@@ -427,8 +561,7 @@ class _InspeccionesGuardadasScreenState
   ) async {
     final int id = inspeccion['id'];
 
-    final confirmar =
-        await showDialog<bool>(
+    final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -441,51 +574,36 @@ class _InspeccionesGuardadasScreenState
           ),
           content: Text(
             '¿Deseas eliminar la inspección número $id?\n\n'
-            'También se eliminarán las anomalías '
-            'relacionadas con esta inspección.',
-            style: const TextStyle(
-              fontSize: 15,
-            ),
+            'También se eliminarán las anomalías relacionadas '
+            'con esta inspección.',
+            style: const TextStyle(fontSize: 15),
           ),
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(
-                  context,
-                  false,
-                );
+                Navigator.pop(context, false);
               },
               child: const Text(
                 'CANCELAR',
-                style: TextStyle(
-                  color: Colors.grey,
-                ),
+                style: TextStyle(color: Colors.grey),
               ),
             ),
             ElevatedButton(
-              style:
-                  ElevatedButton.styleFrom(
+              style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
                 foregroundColor: Colors.white,
               ),
               onPressed: () {
-                Navigator.pop(
-                  context,
-                  true,
-                );
+                Navigator.pop(context, true);
               },
-              child: const Text(
-                'ELIMINAR',
-              ),
+              child: const Text('ELIMINAR'),
             ),
           ],
         );
       },
     );
 
-    if (confirmar != true) {
-      return;
-    }
+    if (confirmar != true) return;
 
     await db.eliminarInspeccion(id);
 
@@ -495,14 +613,12 @@ class _InspeccionesGuardadasScreenState
 
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text(
           'Inspección eliminada correctamente.',
         ),
-        backgroundColor:
-            Color(0xFF007A4D),
+        backgroundColor: Color(0xFF007A4D),
       ),
     );
   }
@@ -516,14 +632,12 @@ class _InspeccionesGuardadasScreenState
   ) async {
     final int id = inspeccion['id'];
 
-    final datos =
-        await db.obtenerInspeccionCompleta(id);
+    final datos = await db.obtenerInspeccionCompleta(id);
 
     if (!mounted) return;
 
     if (datos == null) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'No se pudo obtener la información.',
@@ -535,15 +649,11 @@ class _InspeccionesGuardadasScreenState
       return;
     }
 
-    final Map<String, dynamic>
-        datosInspeccion =
-        datos['inspeccion']
-            as Map<String, dynamic>;
+    final Map<String, dynamic> datosInspeccion =
+        datos['inspeccion'] as Map<String, dynamic>;
 
     final List<dynamic> anomalias =
         datos['anomalias'] as List<dynamic>;
-
-    if (!mounted) return;
 
     await showDialog(
       context: context,
@@ -561,8 +671,7 @@ class _InspeccionesGuardadasScreenState
                   'Detalle de inspección',
                   style: TextStyle(
                     fontSize: 18,
-                    fontWeight:
-                        FontWeight.bold,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
@@ -570,11 +679,9 @@ class _InspeccionesGuardadasScreenState
           ),
           content: SizedBox(
             width: double.maxFinite,
-            child:
-                SingleChildScrollView(
+            child: SingleChildScrollView(
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _datoDetalle(
                     'Número de registro',
@@ -597,6 +704,14 @@ class _InspeccionesGuardadasScreenState
                     '${datosInspeccion['tipo_inspeccion'] ?? ''}',
                   ),
                   _datoDetalle(
+                    'Tipo de torre',
+                    '${datosInspeccion['tipo_torre'] ?? 'No especificado'}',
+                  ),
+                  _datoDetalle(
+                    'Tipo de cimentación',
+                    '${datosInspeccion['tipo_cimentacion'] ?? 'No especificado'}',
+                  ),
+                  _datoDetalle(
                     'Elaboró',
                     '${datosInspeccion['elaboro'] ?? ''}',
                   ),
@@ -604,22 +719,16 @@ class _InspeccionesGuardadasScreenState
                     'Vo. Bo.',
                     '${datosInspeccion['visto_bueno'] ?? 'No especificado'}',
                   ),
-
                   const SizedBox(height: 12),
-
                   const Text(
                     'TORRES / ANOMALÍAS',
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight:
-                          FontWeight.bold,
-                      color:
-                          Color(0xFF007A4D),
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF007A4D),
                     ),
                   ),
-
                   const SizedBox(height: 8),
-
                   if (anomalias.isEmpty)
                     const Text(
                       'No hay anomalías registradas.',
@@ -629,120 +738,65 @@ class _InspeccionesGuardadasScreenState
                       ),
                     )
                   else
-                    ...anomalias.map(
-                      (anomalia) {
-                        final Map<String,
-                                dynamic>
-                            dato =
-                            Map<String,
-                                dynamic>.from(
-                          anomalia,
-                        );
+                    ...anomalias.map((anomalia) {
+                      final Map<String, dynamic> dato =
+                          Map<String, dynamic>.from(anomalia);
 
-                        return Container(
-                          width:
-                              double.infinity,
-                          margin:
-                              const EdgeInsets.only(
-                            bottom: 8,
-                          ),
-                          padding:
-                              const EdgeInsets.all(
-                            10,
-                          ),
-                          decoration:
-                              BoxDecoration(
-                            color:
-                                const Color(
-                              0xFFF5F5F5,
+                      return Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF5F5F5),
+                          border: Border.all(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(5),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Torre: ${dato['numero_estacion'] ?? ''}',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF007A4D),
+                              ),
                             ),
-                            border:
-                                Border.all(
-                              color:
-                                  Colors.grey,
+                            const SizedBox(height: 5),
+                            Text(
+                              'Fecha de revisión: '
+                              '${dato['fecha_revision'] ?? ''}',
+                              style: const TextStyle(fontSize: 13),
                             ),
-                            borderRadius:
-                                BorderRadius
-                                    .circular(
-                              5,
+                            const SizedBox(height: 3),
+                            Text(
+                              'Anomalía: ${dato['anomalia'] ?? ''}',
+                              style: const TextStyle(fontSize: 13),
                             ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment
-                                    .start,
-                            children: [
-                              Text(
-                                'Torre: ${dato['numero_estacion'] ?? ''}',
-                                style:
-                                    const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight:
-                                      FontWeight.bold,
-                                  color:
-                                      Color(
-                                    0xFF007A4D,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(
-                                height: 5,
-                              ),
-                              Text(
-                                'Fecha de revisión: '
-                                '${dato['fecha_revision'] ?? ''}',
-                                style:
-                                    const TextStyle(
-                                  fontSize: 13,
-                                ),
-                              ),
-                              const SizedBox(
-                                height: 3,
-                              ),
-                              Text(
-                                'Anomalía: '
-                                '${dato['anomalia'] ?? ''}',
-                                style:
-                                    const TextStyle(
-                                  fontSize: 13,
-                                ),
-                              ),
-                              const SizedBox(
-                                height: 3,
-                              ),
-                              Text(
-                                'Fecha de corrección: '
-                                '${dato['fecha_correccion'] ?? ''}',
-                                style:
-                                    const TextStyle(
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
+                            const SizedBox(height: 3),
+                            Text(
+                              'Fecha de corrección: '
+                              '${dato['fecha_correccion'] ?? ''}',
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
                 ],
               ),
             ),
           ),
           actions: [
             ElevatedButton(
-              style:
-                  ElevatedButton.styleFrom(
-                backgroundColor:
-                    const Color(
-                  0xFF007A4D,
-                ),
-                foregroundColor:
-                    Colors.white,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF007A4D),
+                foregroundColor: Colors.white,
               ),
               onPressed: () {
                 Navigator.pop(context);
               },
-              child:
-                  const Text('CERRAR'),
+              child: const Text('CERRAR'),
             ),
           ],
         );
@@ -754,36 +808,24 @@ class _InspeccionesGuardadasScreenState
   // DATO DEL DETALLE
   // ==========================================================
 
-  Widget _datoDetalle(
-    String titulo,
-    String valor,
-  ) {
+  Widget _datoDetalle(String titulo, String valor) {
     return Padding(
-      padding:
-          const EdgeInsets.only(
-        bottom: 8,
-      ),
+      padding: const EdgeInsets.only(bottom: 8),
       child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             titulo,
-            style:
-                const TextStyle(
+            style: const TextStyle(
               fontSize: 12,
-              fontWeight:
-                  FontWeight.bold,
+              fontWeight: FontWeight.bold,
               color: Colors.grey,
             ),
           ),
           const SizedBox(height: 2),
           Text(
             valor,
-            style:
-                const TextStyle(
-              fontSize: 14,
-            ),
+            style: const TextStyle(fontSize: 14),
           ),
         ],
       ),
@@ -797,14 +839,11 @@ class _InspeccionesGuardadasScreenState
   Future<void> editarInspeccion(
     Map<String, dynamic> inspeccion,
   ) async {
-    final resultado =
-        await Navigator.push(
+    final resultado = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            EditarInspeccionScreen(
-          inspeccionId:
-              inspeccion['id'] as int,
+        builder: (context) => EditarInspeccionScreen(
+          inspeccionId: inspeccion['id'] as int,
         ),
       ),
     );
@@ -816,14 +855,12 @@ class _InspeccionesGuardadasScreenState
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'Inspección actualizada correctamente.',
           ),
-          backgroundColor:
-              Color(0xFF007A4D),
+          backgroundColor: Color(0xFF007A4D),
         ),
       );
     }
@@ -847,10 +884,8 @@ class _InspeccionesGuardadasScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-
       appBar: AppBar(
-        backgroundColor:
-            const Color(0xFF007A4D),
+        backgroundColor: const Color(0xFF007A4D),
         foregroundColor: Colors.white,
         centerTitle: true,
         title: const Text(
@@ -860,110 +895,68 @@ class _InspeccionesGuardadasScreenState
             fontSize: 19,
           ),
         ),
-
-        // ======================================================
-        // BOTÓN DE SINCRONIZACIÓN
-        // ======================================================
-
         actions: [
           IconButton(
-            tooltip:
-                'Sincronizar con el servidor',
-            onPressed:
-                sincronizando
-                    ? null
-                    : sincronizarConServidor,
-            icon:
-                sincronizando
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child:
-                            CircularProgressIndicator(
-                          strokeWidth: 2.5,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(
-                        Icons.sync,
-                        size: 27,
-                      ),
+            tooltip: 'Sincronizar con el servidor',
+            onPressed: sincronizando
+                ? null
+                : sincronizarConServidor,
+            icon: sincronizando
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(
+                    Icons.sync,
+                    size: 27,
+                  ),
           ),
         ],
       ),
-
       body: RefreshIndicator(
         onRefresh: cargarInspecciones,
-        child:
-            SingleChildScrollView(
-          physics:
-              const AlwaysScrollableScrollPhysics(),
-          padding:
-              const EdgeInsets.all(12),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(12),
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.stretch,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // ==================================================
               // BUSCADOR
               // ==================================================
 
               TextField(
-                controller:
-                    buscadorController,
-                style: const TextStyle(
-                  fontSize: 15,
-                ),
-                decoration:
-                    InputDecoration(
-                  labelText:
-                      'Buscar inspección',
-                  labelStyle:
-                      const TextStyle(
-                    fontSize: 14,
-                  ),
+                controller: buscadorController,
+                style: const TextStyle(fontSize: 15),
+                decoration: InputDecoration(
+                  labelText: 'Buscar inspección',
+                  labelStyle: const TextStyle(fontSize: 14),
                   hintText:
                       'Fecha, línea, zona, tipo o nombre...',
-                  hintStyle:
-                      const TextStyle(
-                    fontSize: 13,
-                  ),
-                  prefixIcon:
-                      const Icon(
+                  hintStyle: const TextStyle(fontSize: 13),
+                  prefixIcon: const Icon(
                     Icons.search,
-                    color:
-                        Color(0xFF007A4D),
+                    color: Color(0xFF007A4D),
                   ),
-                  suffixIcon:
-                      buscadorController
-                              .text
-                              .isNotEmpty
-                          ? IconButton(
-                              icon:
-                                  const Icon(
-                                Icons.clear,
-                              ),
-                              onPressed: () {
-                                buscadorController
-                                    .clear();
-                              },
-                            )
-                          : null,
-                  border:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius
-                            .circular(6),
+                  suffixIcon: buscadorController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            buscadorController.clear();
+                          },
+                        )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
                   ),
-                  focusedBorder:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius
-                            .circular(6),
-                    borderSide:
-                        const BorderSide(
-                      color:
-                          Color(0xFF007A4D),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    borderSide: const BorderSide(
+                      color: Color(0xFF007A4D),
                       width: 2,
                     ),
                   ),
@@ -979,77 +972,154 @@ class _InspeccionesGuardadasScreenState
               Row(
                 children: [
                   Expanded(
-                    child:
-                        OutlinedButton.icon(
-                      onPressed:
-                          seleccionarDia,
-                      icon:
-                          const Icon(
+                    child: OutlinedButton.icon(
+                      onPressed: seleccionarDia,
+                      icon: const Icon(
                         Icons.calendar_month,
                         size: 20,
                       ),
                       label: Text(
                         fechaFiltro == null
                             ? 'Buscar por día'
-                            : formatearFecha(
-                                fechaFiltro!,
-                              ),
-                        style:
-                            const TextStyle(
-                          fontSize: 13,
-                        ),
+                            : formatearFecha(fechaFiltro!),
+                        style: const TextStyle(fontSize: 13),
                       ),
-                      style:
-                          OutlinedButton
-                              .styleFrom(
-                        foregroundColor:
-                            const Color(
-                          0xFF007A4D,
-                        ),
-                        side:
-                            const BorderSide(
-                          color:
-                              Color(
-                            0xFF007A4D,
-                          ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF007A4D),
+                        side: const BorderSide(
+                          color: Color(0xFF007A4D),
                         ),
                       ),
                     ),
                   ),
-
                   if (fechaFiltro != null)
                     IconButton(
-                      tooltip:
-                          'Quitar filtro de fecha',
-                      onPressed:
-                          limpiarFiltroFecha,
-                      icon:
-                          const Icon(
+                      tooltip: 'Quitar filtro de fecha',
+                      onPressed: limpiarFiltroFecha,
+                      icon: const Icon(
                         Icons.clear,
                         color: Colors.red,
                       ),
                     ),
-
                   const SizedBox(width: 5),
-
                   IconButton(
-                    tooltip:
-                        ordenDescendente
-                            ? 'Más antiguas primero'
-                            : 'Más recientes primero',
-                    onPressed:
-                        cambiarOrden,
+                    tooltip: ordenDescendente
+                        ? 'Más antiguas primero'
+                        : 'Más recientes primero',
+                    onPressed: cambiarOrden,
                     icon: Icon(
                       ordenDescendente
                           ? Icons.arrow_downward
                           : Icons.arrow_upward,
-                      color:
-                          const Color(
-                        0xFF007A4D,
-                      ),
+                      color: const Color(0xFF007A4D),
                     ),
                   ),
                 ],
+              ),
+
+              const SizedBox(height: 10),
+
+              // ==================================================
+              // EXPORTACIÓN POR DÍA Y POR MES
+              // ==================================================
+
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F5),
+                  border: Border.all(
+                    color: const Color(0xFF007A4D),
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(
+                          Icons.file_download,
+                          color: Color(0xFF007A4D),
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'EXPORTAR REPORTES A EXCEL',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF007A4D),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: exportandoLote
+                                ? null
+                                : exportarExcelPorDia,
+                            icon: const Icon(
+                              Icons.today,
+                              size: 19,
+                            ),
+                            label: const Text(
+                              'POR DÍA',
+                              style: TextStyle(fontSize: 13),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  const Color(0xFF007A4D),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: exportandoLote
+                                ? null
+                                : exportarExcelPorMes,
+                            icon: const Icon(
+                              Icons.calendar_month,
+                              size: 19,
+                            ),
+                            label: const Text(
+                              'POR MES',
+                              style: TextStyle(fontSize: 13),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  const Color(0xFF007A4D),
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (exportandoLote) ...[
+                      const SizedBox(height: 10),
+                      const LinearProgressIndicator(
+                        color: Color(0xFF007A4D),
+                      ),
+                      const SizedBox(height: 5),
+                      const Text(
+                        'Generando archivo Excel...',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ],
+                  ],
+                ),
               ),
 
               const SizedBox(height: 10),
@@ -1059,30 +1129,19 @@ class _InspeccionesGuardadasScreenState
               // ==================================================
 
               Container(
-                padding:
-                    const EdgeInsets.all(10),
-                decoration:
-                    BoxDecoration(
-                  color:
-                      const Color(
-                    0xFFE8F5E9,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  border: Border.all(
+                    color: const Color(0xFF007A4D),
                   ),
-                  border:
-                      Border.all(
-                    color:
-                        const Color(
-                      0xFF007A4D,
-                    ),
-                  ),
-                  borderRadius:
-                      BorderRadius.circular(5),
+                  borderRadius: BorderRadius.circular(5),
                 ),
                 child: Row(
                   children: [
                     const Icon(
                       Icons.folder,
-                      color:
-                          Color(0xFF007A4D),
+                      color: Color(0xFF007A4D),
                       size: 21,
                     ),
                     const SizedBox(width: 8),
@@ -1090,15 +1149,10 @@ class _InspeccionesGuardadasScreenState
                       child: Text(
                         '${inspeccionesFiltradas.length} '
                         'inspección(es) encontrada(s)',
-                        style:
-                            const TextStyle(
+                        style: const TextStyle(
                           fontSize: 13,
-                          fontWeight:
-                              FontWeight.bold,
-                          color:
-                              Color(
-                            0xFF007A4D,
-                          ),
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF007A4D),
                         ),
                       ),
                     ),
@@ -1114,16 +1168,10 @@ class _InspeccionesGuardadasScreenState
 
               if (inspeccionesFiltradas.isEmpty)
                 Container(
-                  padding:
-                      const EdgeInsets.all(30),
-                  decoration:
-                      BoxDecoration(
-                    border:
-                        Border.all(
-                      color: Colors.grey,
-                    ),
-                    borderRadius:
-                        BorderRadius.circular(6),
+                  padding: const EdgeInsets.all(30),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(6),
                   ),
                   child: const Column(
                     children: [
@@ -1135,13 +1183,10 @@ class _InspeccionesGuardadasScreenState
                       SizedBox(height: 10),
                       Text(
                         'No se encontraron inspecciones.',
-                        textAlign:
-                            TextAlign.center,
-                        style:
-                            TextStyle(
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
                           fontSize: 14,
-                          color:
-                              Colors.grey,
+                          color: Colors.grey,
                         ),
                       ),
                     ],
@@ -1149,10 +1194,7 @@ class _InspeccionesGuardadasScreenState
                 )
               else
                 ...inspeccionesFiltradas.map(
-                  (inspeccion) =>
-                      _tarjetaInspeccion(
-                    inspeccion,
-                  ),
+                  (inspeccion) => _tarjetaInspeccion(inspeccion),
                 ),
             ],
           ),
@@ -1162,7 +1204,7 @@ class _InspeccionesGuardadasScreenState
   }
 
   // ==========================================================
-  // TARJETA
+  // TARJETA DE INSPECCIÓN
   // ==========================================================
 
   Widget _tarjetaInspeccion(
@@ -1182,122 +1224,86 @@ class _InspeccionesGuardadasScreenState
     final String tipo =
         '${inspeccion['tipo_inspeccion'] ?? ''}';
 
+    final String tipoTorre =
+        '${inspeccion['tipo_torre'] ?? 'No especificado'}';
+
+    final String tipoCimentacion =
+        '${inspeccion['tipo_cimentacion'] ?? 'No especificado'}';
+
     final String elaboro =
         '${inspeccion['elaboro'] ?? ''}';
 
-    final bool estaExportando =
-        exportandoId == id;
+    final bool estaExportando = exportandoId == id;
 
     return Card(
-      margin:
-          const EdgeInsets.only(
-        bottom: 10,
-      ),
+      margin: const EdgeInsets.only(bottom: 10),
       elevation: 2,
-      shape:
-          RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.circular(7),
-        side:
-            const BorderSide(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(7),
+        side: const BorderSide(
           color: Colors.grey,
           width: 0.5,
         ),
       ),
       child: Padding(
-        padding:
-            const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(10),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ==================================================
             // ENCABEZADO
-            // ==================================================
 
             Row(
               children: [
                 Container(
-                  padding:
-                      const EdgeInsets.all(8),
-                  decoration:
-                      BoxDecoration(
-                    color:
-                        const Color(
-                      0xFFE8F5E9,
-                    ),
-                    borderRadius:
-                        BorderRadius.circular(5),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(5),
                   ),
                   child: const Icon(
                     Icons.assignment,
-                    color:
-                        Color(0xFF007A4D),
+                    color: Color(0xFF007A4D),
                     size: 23,
                   ),
                 ),
-
                 const SizedBox(width: 10),
-
                 Expanded(
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'INSPECCIÓN #$id',
-                        style:
-                            const TextStyle(
+                        style: const TextStyle(
                           fontSize: 15,
-                          fontWeight:
-                              FontWeight.bold,
-                          color:
-                              Color(
-                            0xFF007A4D,
-                          ),
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF007A4D),
                         ),
                       ),
                       const SizedBox(height: 3),
                       Text(
                         fecha,
-                        style:
-                            const TextStyle(
+                        style: const TextStyle(
                           fontSize: 13,
-                          fontWeight:
-                              FontWeight.bold,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
                   ),
                 ),
 
-                // ==================================================
-                // MENÚ DE TRES PUNTOS
-                // ==================================================
+                // MENÚ
 
                 PopupMenuButton<String>(
-                  onSelected:
-                      (opcion) {
+                  onSelected: (opcion) {
                     if (opcion == 'ver') {
-                      verDetalle(
-                        inspeccion,
-                      );
-                    }
-
-                    if (opcion == 'editar') {
-                      editarInspeccion(
-                        inspeccion,
-                      );
-                    }
-
-                    if (opcion == 'eliminar') {
-                      eliminarInspeccion(
-                        inspeccion,
-                      );
+                      verDetalle(inspeccion);
+                    } else if (opcion == 'editar') {
+                      editarInspeccion(inspeccion);
+                    } else if (opcion == 'eliminar') {
+                      eliminarInspeccion(inspeccion);
                     }
                   },
-                  itemBuilder:
-                      (context) => [
+                  itemBuilder: (context) => [
                     const PopupMenuItem(
                       value: 'ver',
                       child: Row(
@@ -1305,27 +1311,13 @@ class _InspeccionesGuardadasScreenState
                           Icon(
                             Icons.visibility,
                             size: 21,
-                            color:
-                                Color(
-                              0xFF007A4D,
-                            ),
+                            color: Color(0xFF007A4D),
                           ),
                           SizedBox(width: 8),
-                          Text(
-                            'Ver detalle',
-                            style:
-                                TextStyle(
-                              fontSize: 14,
-                            ),
-                          ),
+                          Text('Ver detalle'),
                         ],
                       ),
                     ),
-
-                    // ==================================================
-                    // EDITAR
-                    // ==================================================
-
                     const PopupMenuItem(
                       value: 'editar',
                       child: Row(
@@ -1333,23 +1325,13 @@ class _InspeccionesGuardadasScreenState
                           Icon(
                             Icons.edit,
                             size: 21,
-                            color:
-                                Color(
-                              0xFF007A4D,
-                            ),
+                            color: Color(0xFF007A4D),
                           ),
                           SizedBox(width: 8),
-                          Text(
-                            'Editar',
-                            style:
-                                TextStyle(
-                              fontSize: 14,
-                            ),
-                          ),
+                          Text('Editar'),
                         ],
                       ),
                     ),
-
                     const PopupMenuItem(
                       value: 'eliminar',
                       child: Row(
@@ -1357,17 +1339,10 @@ class _InspeccionesGuardadasScreenState
                           Icon(
                             Icons.delete,
                             size: 21,
-                            color:
-                                Colors.red,
+                            color: Colors.red,
                           ),
                           SizedBox(width: 8),
-                          Text(
-                            'Eliminar',
-                            style:
-                                TextStyle(
-                              fontSize: 14,
-                            ),
-                          ),
+                          Text('Eliminar'),
                         ],
                       ),
                     ),
@@ -1378,28 +1353,33 @@ class _InspeccionesGuardadasScreenState
 
             const Divider(),
 
-            // ==================================================
             // INFORMACIÓN
-            // ==================================================
 
             _filaInformacion(
               Icons.electrical_services,
               'Línea',
               linea,
             ),
-
             _filaInformacion(
               Icons.location_on_outlined,
               'Zona',
               zona,
             ),
-
             _filaInformacion(
               Icons.assignment_outlined,
               'Tipo',
               tipo,
             ),
-
+            _filaInformacion(
+              Icons.account_tree_outlined,
+              'Tipo de torre',
+              tipoTorre,
+            ),
+            _filaInformacion(
+              Icons.foundation,
+              'Cimentación',
+              tipoCimentacion,
+            ),
             _filaInformacion(
               Icons.person_outline,
               'Elaboró',
@@ -1408,48 +1388,28 @@ class _InspeccionesGuardadasScreenState
 
             const SizedBox(height: 8),
 
-            // ==================================================
             // VER INSPECCIÓN
-            // ==================================================
 
             SizedBox(
               width: double.infinity,
-              child:
-                  OutlinedButton.icon(
-                onPressed:
-                    estaExportando
-                        ? null
-                        : () {
-                            verDetalle(
-                              inspeccion,
-                            );
-                          },
-                icon:
-                    const Icon(
+              child: OutlinedButton.icon(
+                onPressed: estaExportando
+                    ? null
+                    : () {
+                        verDetalle(inspeccion);
+                      },
+                icon: const Icon(
                   Icons.visibility,
                   size: 19,
                 ),
-                label:
-                    const Text(
+                label: const Text(
                   'VER INSPECCIÓN COMPLETA',
-                  style:
-                      TextStyle(
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(fontSize: 13),
                 ),
-                style:
-                    OutlinedButton
-                        .styleFrom(
-                  foregroundColor:
-                      const Color(
-                    0xFF007A4D,
-                  ),
-                  side:
-                      const BorderSide(
-                    color:
-                        Color(
-                      0xFF007A4D,
-                    ),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFF007A4D),
+                  side: const BorderSide(
+                    color: Color(0xFF007A4D),
                   ),
                 ),
               ),
@@ -1457,59 +1417,39 @@ class _InspeccionesGuardadasScreenState
 
             const SizedBox(height: 8),
 
-            // ==================================================
-            // EXPORTAR EXCEL
-            // ==================================================
+            // EXPORTAR INDIVIDUAL
 
             SizedBox(
               width: double.infinity,
-              child:
-                  ElevatedButton.icon(
-                onPressed:
-                    estaExportando
-                        ? null
-                        : () {
-                            exportarAExcel(
-                              inspeccion,
-                            );
-                          },
-                icon:
-                    estaExportando
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child:
-                                CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color:
-                                  Colors.white,
-                            ),
-                          )
-                        : const Icon(
-                            Icons.table_view,
-                            size: 19,
-                          ),
+              child: ElevatedButton.icon(
+                onPressed: estaExportando || exportandoLote
+                    ? null
+                    : () {
+                        exportarAExcel(inspeccion);
+                      },
+                icon: estaExportando
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(
+                        Icons.table_view,
+                        size: 19,
+                      ),
                 label: Text(
                   estaExportando
                       ? 'GENERANDO EXCEL...'
                       : 'EXPORTAR A EXCEL',
-                  style:
-                      const TextStyle(
-                    fontSize: 13,
-                  ),
+                  style: const TextStyle(fontSize: 13),
                 ),
-                style:
-                    ElevatedButton
-                        .styleFrom(
-                  backgroundColor:
-                      const Color(
-                    0xFF007A4D,
-                  ),
-                  foregroundColor:
-                      Colors.white,
-                  padding:
-                      const EdgeInsets
-                          .symmetric(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF007A4D),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
                     vertical: 12,
                   ),
                 ),
@@ -1531,39 +1471,27 @@ class _InspeccionesGuardadasScreenState
     String valor,
   ) {
     return Padding(
-      padding:
-          const EdgeInsets.only(
-        bottom: 6,
-      ),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
             icono,
             size: 18,
-            color:
-                const Color(
-              0xFF007A4D,
-            ),
+            color: const Color(0xFF007A4D),
           ),
           const SizedBox(width: 7),
           Text(
             '$titulo: ',
-            style:
-                const TextStyle(
+            style: const TextStyle(
               fontSize: 13,
-              fontWeight:
-                  FontWeight.bold,
+              fontWeight: FontWeight.bold,
             ),
           ),
           Expanded(
             child: Text(
               valor,
-              style:
-                  const TextStyle(
-                fontSize: 13,
-              ),
+              style: const TextStyle(fontSize: 13),
             ),
           ),
         ],
@@ -1604,18 +1532,12 @@ class _FilaAnomaliaEditar {
     String fechaRevision = '',
     String anomalia = '',
     String fechaCorreccion = '',
-  })  : torreController =
-            TextEditingController(text: torre),
+  })  : torreController = TextEditingController(text: torre),
         fechaRevisionController =
-            TextEditingController(
-          text: fechaRevision,
-        ),
-        anomaliaController =
-            TextEditingController(text: anomalia),
+            TextEditingController(text: fechaRevision),
+        anomaliaController = TextEditingController(text: anomalia),
         fechaCorreccionController =
-            TextEditingController(
-          text: fechaCorreccion,
-        );
+            TextEditingController(text: fechaCorreccion);
 
   void dispose() {
     torreController.dispose();
@@ -1651,6 +1573,24 @@ class _EditarInspeccionScreenState
   final TextEditingController vistoBuenoController =
       TextEditingController();
 
+  // NUEVOS CAMPOS
+
+  final List<String> tiposTorre = [
+    'Suspensión',
+    'Remate',
+    'Flexión',
+    'Transposición',
+  ];
+
+  final List<String> tiposCimentacion = [
+    'Acero',
+    'Madera',
+    'Concreto',
+  ];
+
+  String? tipoTorreSeleccionado;
+  String? tipoCimentacionSeleccionado;
+
   List<_FilaAnomaliaEditar> filas = [];
 
   bool cargando = true;
@@ -1667,8 +1607,7 @@ class _EditarInspeccionScreenState
   }
 
   Future<void> cargarDatos() async {
-    final datos =
-        await db.obtenerInspeccionCompleta(
+    final datos = await db.obtenerInspeccionCompleta(
       widget.inspeccionId,
     );
 
@@ -1678,17 +1617,14 @@ class _EditarInspeccionScreenState
       setState(() {
         cargando = false;
       });
-
       return;
     }
 
-    final inspeccion =
-        Map<String, dynamic>.from(
+    final inspeccion = Map<String, dynamic>.from(
       datos['inspeccion'],
     );
 
-    final anomalias =
-        List<Map<String, dynamic>>.from(
+    final anomalias = List<Map<String, dynamic>>.from(
       datos['anomalias'],
     );
 
@@ -1710,16 +1646,28 @@ class _EditarInspeccionScreenState
     vistoBuenoController.text =
         '${inspeccion['visto_bueno'] ?? ''}';
 
+    final String tipoTorreGuardado =
+        '${inspeccion['tipo_torre'] ?? ''}';
+
+    final String tipoCimentacionGuardada =
+        '${inspeccion['tipo_cimentacion'] ?? ''}';
+
+    tipoTorreSeleccionado =
+        tiposTorre.contains(tipoTorreGuardado)
+            ? tipoTorreGuardado
+            : null;
+
+    tipoCimentacionSeleccionado =
+        tiposCimentacion.contains(tipoCimentacionGuardada)
+            ? tipoCimentacionGuardada
+            : null;
+
     filas = anomalias.map((dato) {
       return _FilaAnomaliaEditar(
-        torre:
-            '${dato['numero_estacion'] ?? ''}',
-        fechaRevision:
-            '${dato['fecha_revision'] ?? ''}',
-        anomalia:
-            '${dato['anomalia'] ?? ''}',
-        fechaCorreccion:
-            '${dato['fecha_correccion'] ?? ''}',
+        torre: '${dato['numero_estacion'] ?? ''}',
+        fechaRevision: '${dato['fecha_revision'] ?? ''}',
+        anomalia: '${dato['anomalia'] ?? ''}',
+        fechaCorreccion: '${dato['fecha_correccion'] ?? ''}',
       );
     }).toList();
 
@@ -1744,9 +1692,7 @@ class _EditarInspeccionScreenState
   // CONVERTIR FECHA
   // ==========================================================
 
-  DateTime convertirFecha(
-    String texto,
-  ) {
+  DateTime convertirFecha(String texto) {
     final partes = texto.split('/');
 
     if (partes.length == 3) {
@@ -1767,28 +1713,18 @@ class _EditarInspeccionScreenState
   // ==========================================================
 
   Future<void> seleccionarFechaGeneral() async {
-    final fecha =
-        await showDatePicker(
+    final fecha = await showDatePicker(
       context: context,
-      initialDate:
-          convertirFecha(
-        fechaController.text,
-      ),
-      firstDate:
-          DateTime(2020),
-      lastDate:
-          DateTime(2100),
-      locale:
-          const Locale('es', 'MX'),
-      cancelText:
-          'CANCELAR',
-      confirmText:
-          'ACEPTAR',
+      initialDate: convertirFecha(fechaController.text),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      locale: const Locale('es', 'MX'),
+      cancelText: 'CANCELAR',
+      confirmText: 'ACEPTAR',
     );
 
     if (fecha != null) {
-      fechaController.text =
-          formatearFecha(fecha);
+      fechaController.text = formatearFecha(fecha);
     }
   }
 
@@ -1799,40 +1735,26 @@ class _EditarInspeccionScreenState
   Future<void> seleccionarFechaRevision(
     _FilaAnomaliaEditar fila,
   ) async {
-    DateTime fechaInicial =
-        DateTime.now();
+    DateTime fechaInicial = DateTime.now();
 
-    if (fila.fechaRevisionController
-        .text
-        .trim()
-        .isNotEmpty) {
-      fechaInicial =
-          convertirFecha(
+    if (fila.fechaRevisionController.text.trim().isNotEmpty) {
+      fechaInicial = convertirFecha(
         fila.fechaRevisionController.text,
       );
     }
 
-    final fecha =
-        await showDatePicker(
+    final fecha = await showDatePicker(
       context: context,
       initialDate: fechaInicial,
-      firstDate:
-          DateTime(2020),
-      lastDate:
-          DateTime(2100),
-      locale:
-          const Locale('es', 'MX'),
-      cancelText:
-          'CANCELAR',
-      confirmText:
-          'ACEPTAR',
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      locale: const Locale('es', 'MX'),
+      cancelText: 'CANCELAR',
+      confirmText: 'ACEPTAR',
     );
 
     if (fecha != null) {
-      fila.fechaRevisionController
-              .text =
-          formatearFecha(fecha);
-
+      fila.fechaRevisionController.text = formatearFecha(fecha);
       setState(() {});
     }
   }
@@ -1844,8 +1766,7 @@ class _EditarInspeccionScreenState
   Future<void> seleccionarCorreccion(
     _FilaAnomaliaEditar fila,
   ) async {
-    final opcion =
-        await showDialog<String>(
+    final opcion = await showDialog<String>(
       context: context,
       builder: (context) {
         return AlertDialog(
@@ -1853,34 +1774,16 @@ class _EditarInspeccionScreenState
             'Estatus de corrección',
             style: TextStyle(
               fontSize: 18,
-              fontWeight:
-                  FontWeight.bold,
+              fontWeight: FontWeight.bold,
             ),
           ),
           content: Column(
-            mainAxisSize:
-                MainAxisSize.min,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              _opcionCorreccion(
-                context,
-                fila,
-                'URGENTE',
-              ),
-              _opcionCorreccion(
-                context,
-                fila,
-                'PROG 7 D',
-              ),
-              _opcionCorreccion(
-                context,
-                fila,
-                'PROG 30 D',
-              ),
-              _opcionCorreccion(
-                context,
-                fila,
-                'HECHO',
-              ),
+              _opcionCorreccion(context, fila, 'URGENTE'),
+              _opcionCorreccion(context, fila, 'PROG 7 D'),
+              _opcionCorreccion(context, fila, 'PROG 30 D'),
+              _opcionCorreccion(context, fila, 'HECHO'),
             ],
           ),
         );
@@ -1888,9 +1791,7 @@ class _EditarInspeccionScreenState
     );
 
     if (opcion != null) {
-      fila.fechaCorreccionController
-          .text = opcion;
-
+      fila.fechaCorreccionController.text = opcion;
       setState(() {});
     }
   }
@@ -1904,26 +1805,21 @@ class _EditarInspeccionScreenState
       leading: Icon(
         Icons.circle,
         size: 14,
-        color:
-            texto == 'HECHO'
-                ? Colors.green
-                : texto == 'URGENTE'
-                    ? Colors.red
-                    : Colors.orange,
+        color: texto == 'HECHO'
+            ? Colors.green
+            : texto == 'URGENTE'
+                ? Colors.red
+                : Colors.orange,
       ),
       title: Text(
         texto,
         style: const TextStyle(
           fontSize: 15,
-          fontWeight:
-              FontWeight.w500,
+          fontWeight: FontWeight.w500,
         ),
       ),
       onTap: () {
-        Navigator.pop(
-          context,
-          texto,
-        );
+        Navigator.pop(context, texto);
       },
     );
   }
@@ -1936,8 +1832,7 @@ class _EditarInspeccionScreenState
     setState(() {
       filas.add(
         _FilaAnomaliaEditar(
-          fechaRevision:
-              fechaController.text,
+          fechaRevision: fechaController.text,
         ),
       );
     });
@@ -1949,7 +1844,6 @@ class _EditarInspeccionScreenState
 
   void eliminarTorre(int index) {
     final fila = filas[index];
-
     fila.dispose();
 
     setState(() {
@@ -1968,15 +1862,16 @@ class _EditarInspeccionScreenState
         lineaController.text.trim().isEmpty ||
         zonaController.text.trim().isEmpty ||
         tipoController.text.trim().isEmpty ||
+        tipoTorreSeleccionado == null ||
+        tipoCimentacionSeleccionado == null ||
         elaboroController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Completa todos los campos obligatorios.',
+            'Completa todos los campos obligatorios, '
+            'incluyendo tipo de torre y cimentación.',
           ),
-          backgroundColor:
-              Colors.red,
+          backgroundColor: Colors.red,
         ),
       );
 
@@ -1989,65 +1884,43 @@ class _EditarInspeccionScreenState
 
     try {
       final inspeccion = {
-        'fecha_inspeccion':
-            fechaController.text.trim(),
-        'linea_transmision':
-            lineaController.text.trim(),
-        'zona_transmision':
-            zonaController.text.trim(),
-        'tipo_inspeccion':
-            tipoController.text.trim(),
-        'elaboro':
-            elaboroController.text.trim(),
-        'visto_bueno':
-            vistoBuenoController.text.trim(),
+        'fecha_inspeccion': fechaController.text.trim(),
+        'linea_transmision': lineaController.text.trim(),
+        'zona_transmision': zonaController.text.trim(),
+        'tipo_inspeccion': tipoController.text.trim(),
+        'tipo_torre': tipoTorreSeleccionado,
+        'tipo_cimentacion': tipoCimentacionSeleccionado,
+        'elaboro': elaboroController.text.trim(),
+        'visto_bueno': vistoBuenoController.text.trim(),
         'sincronizado': 0,
       };
 
-      final List<Map<String, dynamic>>
-          anomalias = [];
+      final List<Map<String, dynamic>> anomalias = [];
 
       for (final fila in filas) {
-        if (fila.torreController.text
-                .trim()
-                .isEmpty) {
+        if (fila.torreController.text.trim().isEmpty) {
           continue;
         }
 
         anomalias.add({
-          'numero_estacion':
-              fila.torreController.text
-                  .trim(),
+          'numero_estacion': fila.torreController.text.trim(),
           'fecha_revision':
-              fila.fechaRevisionController
-                  .text
-                  .trim(),
-          'anomalia':
-              fila.anomaliaController
-                  .text
-                  .trim(),
+              fila.fechaRevisionController.text.trim(),
+          'anomalia': fila.anomaliaController.text.trim(),
           'fecha_correccion':
-              fila.fechaCorreccionController
-                  .text
-                  .trim(),
+              fila.fechaCorreccionController.text.trim(),
         });
       }
 
       await db.actualizarInspeccionCompleta(
-        inspeccionId:
-            widget.inspeccionId,
-        inspeccion:
-            inspeccion,
-        anomalias:
-            anomalias,
+        inspeccionId: widget.inspeccionId,
+        inspeccion: inspeccion,
+        anomalias: anomalias,
       );
 
       if (!mounted) return;
 
-      Navigator.pop(
-        context,
-        true,
-      );
+      Navigator.pop(context, true);
     } catch (e) {
       if (!mounted) return;
 
@@ -2055,14 +1928,12 @@ class _EditarInspeccionScreenState
         guardando = false;
       });
 
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             'No se pudieron guardar los cambios.\n$e',
           ),
-          backgroundColor:
-              Colors.red,
+          backgroundColor: Colors.red,
         ),
       );
     }
@@ -2095,96 +1966,59 @@ class _EditarInspeccionScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          Colors.white,
-
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        backgroundColor:
-            const Color(0xFF007A4D),
-        foregroundColor:
-            Colors.white,
+        backgroundColor: const Color(0xFF007A4D),
+        foregroundColor: Colors.white,
         centerTitle: true,
         title: const Text(
           'Editar inspección',
           style: TextStyle(
             fontSize: 19,
-            fontWeight:
-                FontWeight.bold,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),
-
       body: cargando
           ? const Center(
-              child:
-                  CircularProgressIndicator(
-                color:
-                    Color(0xFF007A4D),
+              child: CircularProgressIndicator(
+                color: Color(0xFF007A4D),
               ),
             )
           : SingleChildScrollView(
-              padding:
-                  const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(12),
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment
-                        .stretch,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ==================================================
                   // INFORMACIÓN GENERAL
-                  // ==================================================
 
                   Container(
-                    padding:
-                        const EdgeInsets.all(
-                      12,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8F5E9),
+                      border: Border.all(
+                        color: const Color(0xFF007A4D),
+                      ),
+                      borderRadius: BorderRadius.circular(6),
                     ),
-                    decoration:
-                        BoxDecoration(
-                      color:
-                          const Color(
-                        0xFFE8F5E9,
-                      ),
-                      border:
-                          Border.all(
-                        color:
-                            const Color(
-                          0xFF007A4D,
-                        ),
-                      ),
-                      borderRadius:
-                          BorderRadius.circular(
-                        6,
-                      ),
-                    ),
-                    child:
-                        const Text(
+                    child: const Text(
                       'INFORMACIÓN GENERAL',
-                      style:
-                          TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
-                        fontWeight:
-                            FontWeight.bold,
-                        color:
-                            Color(
-                          0xFF007A4D,
-                        ),
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF007A4D),
                       ),
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 12,
-                  ),
+                  const SizedBox(height: 12),
 
                   _campoTexto(
                     'Fecha de inspección',
                     fechaController,
                     readOnly: true,
-                    onTap:
-                        seleccionarFechaGeneral,
-                    icono:
-                        Icons.calendar_month,
+                    onTap: seleccionarFechaGeneral,
+                    icono: Icons.calendar_month,
                   ),
 
                   _campoTexto(
@@ -2202,6 +2036,34 @@ class _EditarInspeccionScreenState
                     tipoController,
                   ),
 
+                  // TIPO DE TORRE
+
+                  _campoDesplegable(
+                    etiqueta: 'Tipo de torre',
+                    valor: tipoTorreSeleccionado,
+                    opciones: tiposTorre,
+                    icono: Icons.account_tree_outlined,
+                    alCambiar: (valor) {
+                      setState(() {
+                        tipoTorreSeleccionado = valor;
+                      });
+                    },
+                  ),
+
+                  // TIPO DE CIMENTACIÓN
+
+                  _campoDesplegable(
+                    etiqueta: 'Tipo de cimentación',
+                    valor: tipoCimentacionSeleccionado,
+                    opciones: tiposCimentacion,
+                    icono: Icons.foundation,
+                    alCambiar: (valor) {
+                      setState(() {
+                        tipoCimentacionSeleccionado = valor;
+                      });
+                    },
+                  ),
+
                   _campoTexto(
                     'Elaboró',
                     elaboroController,
@@ -2212,96 +2074,57 @@ class _EditarInspeccionScreenState
                     vistoBuenoController,
                   ),
 
-                  const SizedBox(
-                    height: 15,
-                  ),
+                  const SizedBox(height: 15),
 
-                  // ==================================================
                   // TORRES
-                  // ==================================================
 
                   Row(
                     children: [
                       const Expanded(
                         child: Text(
                           'TORRES / ANOMALÍAS',
-                          style:
-                              TextStyle(
+                          style: TextStyle(
                             fontSize: 16,
-                            fontWeight:
-                                FontWeight.bold,
-                            color:
-                                Color(
-                              0xFF007A4D,
-                            ),
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF007A4D),
                           ),
                         ),
                       ),
-
-                      ElevatedButton
-                          .icon(
-                        onPressed:
-                            agregarTorre,
-                        icon:
-                            const Icon(
+                      ElevatedButton.icon(
+                        onPressed: agregarTorre,
+                        icon: const Icon(
                           Icons.add,
                           size: 20,
                         ),
-                        label:
-                            const Text(
+                        label: const Text(
                           'AGREGAR',
-                          style:
-                              TextStyle(
-                            fontSize: 13,
-                          ),
+                          style: TextStyle(fontSize: 13),
                         ),
-                        style:
-                            ElevatedButton
-                                .styleFrom(
+                        style: ElevatedButton.styleFrom(
                           backgroundColor:
-                              const Color(
-                            0xFF007A4D,
-                          ),
-                          foregroundColor:
-                              Colors.white,
+                              const Color(0xFF007A4D),
+                          foregroundColor: Colors.white,
                         ),
                       ),
                     ],
                   ),
 
-                  const SizedBox(
-                    height: 10,
-                  ),
+                  const SizedBox(height: 10),
 
                   if (filas.isEmpty)
                     Container(
-                      padding:
-                          const EdgeInsets.all(
-                        20,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey),
+                        borderRadius: BorderRadius.circular(6),
                       ),
-                      decoration:
-                          BoxDecoration(
-                        border:
-                            Border.all(
-                          color:
-                              Colors.grey,
-                        ),
-                        borderRadius:
-                            BorderRadius.circular(
-                          6,
-                        ),
-                      ),
-                      child:
-                          const Text(
+                      child: const Text(
                         'No hay torres registradas.\n'
                         'Presiona AGREGAR para añadir una.',
-                        textAlign:
-                            TextAlign.center,
-                        style:
-                            TextStyle(
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
                           fontSize: 14,
-                          color:
-                              Colors.grey,
+                          color: Colors.grey,
                         ),
                       ),
                     )
@@ -2309,8 +2132,7 @@ class _EditarInspeccionScreenState
                     ...List.generate(
                       filas.length,
                       (index) {
-                        final fila =
-                            filas[index];
+                        final fila = filas[index];
 
                         return _tarjetaTorreEditar(
                           fila,
@@ -2319,31 +2141,21 @@ class _EditarInspeccionScreenState
                       },
                     ),
 
-                  const SizedBox(
-                    height: 15,
-                  ),
+                  const SizedBox(height: 15),
 
-                  // ==================================================
                   // GUARDAR
-                  // ==================================================
 
                   SizedBox(
                     height: 52,
-                    child:
-                        ElevatedButton.icon(
-                      onPressed:
-                          guardando
-                              ? null
-                              : guardarCambios,
+                    child: ElevatedButton.icon(
+                      onPressed: guardando ? null : guardarCambios,
                       icon: guardando
                           ? const SizedBox(
                               width: 20,
                               height: 20,
-                              child:
-                                  CircularProgressIndicator(
+                              child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color:
-                                    Colors.white,
+                                color: Colors.white,
                               ),
                             )
                           : const Icon(
@@ -2354,46 +2166,30 @@ class _EditarInspeccionScreenState
                         guardando
                             ? 'GUARDANDO...'
                             : 'GUARDAR CAMBIOS',
-                        style:
-                            const TextStyle(
+                        style: const TextStyle(
                           fontSize: 15,
-                          fontWeight:
-                              FontWeight.bold,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      style:
-                          ElevatedButton
-                              .styleFrom(
+                      style: ElevatedButton.styleFrom(
                         backgroundColor:
-                            const Color(
-                          0xFF007A4D,
-                        ),
-                        foregroundColor:
-                            Colors.white,
+                            const Color(0xFF007A4D),
+                        foregroundColor: Colors.white,
                       ),
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 10,
-                  ),
+                  const SizedBox(height: 10),
 
                   OutlinedButton(
-                    onPressed:
-                        guardando
-                            ? null
-                            : () {
-                                Navigator.pop(
-                                  context,
-                                );
-                              },
-                    child:
-                        const Text(
+                    onPressed: guardando
+                        ? null
+                        : () {
+                            Navigator.pop(context);
+                          },
+                    child: const Text(
                       'CANCELAR',
-                      style:
-                          TextStyle(
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(fontSize: 14),
                     ),
                   ),
                 ],
@@ -2414,60 +2210,80 @@ class _EditarInspeccionScreenState
     IconData? icono,
   }) {
     return Padding(
-      padding:
-          const EdgeInsets.only(
-        bottom: 10,
-      ),
+      padding: const EdgeInsets.only(bottom: 10),
       child: TextField(
-        controller:
-            controller,
-        readOnly:
-            readOnly,
-        onTap:
-            onTap,
-        style:
-            const TextStyle(
-          fontSize: 15,
-        ),
-        decoration:
-            InputDecoration(
-          labelText:
-              etiqueta,
-          labelStyle:
-              const TextStyle(
-            fontSize: 14,
+        controller: controller,
+        readOnly: readOnly,
+        onTap: onTap,
+        style: const TextStyle(fontSize: 15),
+        decoration: InputDecoration(
+          labelText: etiqueta,
+          labelStyle: const TextStyle(fontSize: 14),
+          suffixIcon: icono == null
+              ? null
+              : Icon(
+                  icono,
+                  color: const Color(0xFF007A4D),
+                ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
           ),
-          suffixIcon:
-              icono == null
-                  ? null
-                  : Icon(
-                      icono,
-                      color:
-                          const Color(
-                        0xFF007A4D,
-                      ),
-                    ),
-          border:
-              OutlineInputBorder(
-            borderRadius:
-                BorderRadius.circular(
-              6,
-            ),
-          ),
-          focusedBorder:
-              OutlineInputBorder(
-            borderRadius:
-                BorderRadius.circular(
-              6,
-            ),
-            borderSide:
-                const BorderSide(
-              color:
-                  Color(0xFF007A4D),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: const BorderSide(
+              color: Color(0xFF007A4D),
               width: 2,
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  // ==========================================================
+  // CAMPO DESPLEGABLE
+  // ==========================================================
+
+  Widget _campoDesplegable({
+    required String etiqueta,
+    required String? valor,
+    required List<String> opciones,
+    required IconData icono,
+    required ValueChanged<String?> alCambiar,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: DropdownButtonFormField<String>(
+        initialValue: valor,
+        isExpanded: true,
+        decoration: InputDecoration(
+          labelText: etiqueta,
+          labelStyle: const TextStyle(fontSize: 14),
+          prefixIcon: Icon(
+            icono,
+            color: const Color(0xFF007A4D),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(6),
+            borderSide: const BorderSide(
+              color: Color(0xFF007A4D),
+              width: 2,
+            ),
+          ),
+        ),
+        items: opciones.map((opcion) {
+          return DropdownMenuItem<String>(
+            value: opcion,
+            child: Text(
+              opcion,
+              style: const TextStyle(fontSize: 15),
+            ),
+          );
+        }).toList(),
+        onChanged: alCambiar,
       ),
     );
   }
@@ -2481,213 +2297,122 @@ class _EditarInspeccionScreenState
     int index,
   ) {
     return Card(
-      margin:
-          const EdgeInsets.only(
-        bottom: 12,
-      ),
+      margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
-      shape:
-          RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.circular(7),
-        side:
-            const BorderSide(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(7),
+        side: const BorderSide(
           color: Colors.grey,
           width: 0.5,
         ),
       ),
       child: Padding(
-        padding:
-            const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(10),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment
-                  .stretch,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Row(
               children: [
                 Expanded(
                   child: Text(
                     'TORRE ${index + 1}',
-                    style:
-                        const TextStyle(
+                    style: const TextStyle(
                       fontSize: 15,
-                      fontWeight:
-                          FontWeight.bold,
-                      color:
-                          Color(
-                        0xFF007A4D,
-                      ),
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF007A4D),
                     ),
                   ),
                 ),
-
                 IconButton(
-                  tooltip:
-                      'Eliminar torre',
+                  tooltip: 'Eliminar torre',
                   onPressed: () {
-                    eliminarTorre(
-                      index,
-                    );
+                    eliminarTorre(index);
                   },
-                  icon:
-                      const Icon(
+                  icon: const Icon(
                     Icons.delete,
-                    color:
-                        Colors.red,
+                    color: Colors.red,
                   ),
                 ),
               ],
             ),
 
-            // ==================================================
             // TORRE
-            // ==================================================
 
             TextField(
-              controller:
-                  fila.torreController,
-              style:
-                  const TextStyle(
-                fontSize: 15,
-              ),
-              decoration:
-                  const InputDecoration(
-                labelText:
-                    'Número de torre / estación',
-                labelStyle:
-                    TextStyle(
-                  fontSize: 14,
-                ),
-                prefixIcon:
-                    Icon(
+              controller: fila.torreController,
+              style: const TextStyle(fontSize: 15),
+              decoration: const InputDecoration(
+                labelText: 'Número de torre / estación',
+                labelStyle: TextStyle(fontSize: 14),
+                prefixIcon: Icon(
                   Icons.electrical_services,
-                  color:
-                      Color(
-                    0xFF007A4D,
-                  ),
+                  color: Color(0xFF007A4D),
                 ),
-                border:
-                    OutlineInputBorder(),
+                border: OutlineInputBorder(),
               ),
             ),
 
-            const SizedBox(
-              height: 10,
-            ),
+            const SizedBox(height: 10),
 
-            // ==================================================
             // FECHA DE REVISIÓN
-            // ==================================================
 
             TextField(
-              controller:
-                  fila.fechaRevisionController,
+              controller: fila.fechaRevisionController,
               readOnly: true,
               onTap: () {
-                seleccionarFechaRevision(
-                  fila,
-                );
+                seleccionarFechaRevision(fila);
               },
-              style:
-                  const TextStyle(
-                fontSize: 15,
-              ),
-              decoration:
-                  const InputDecoration(
-                labelText:
-                    'Fecha de revisión',
-                labelStyle:
-                    TextStyle(
-                  fontSize: 14,
-                ),
-                suffixIcon:
-                    Icon(
+              style: const TextStyle(fontSize: 15),
+              decoration: const InputDecoration(
+                labelText: 'Fecha de revisión',
+                labelStyle: TextStyle(fontSize: 14),
+                suffixIcon: Icon(
                   Icons.calendar_month,
-                  color:
-                      Color(
-                    0xFF007A4D,
-                  ),
+                  color: Color(0xFF007A4D),
                 ),
-                border:
-                    OutlineInputBorder(),
+                border: OutlineInputBorder(),
               ),
             ),
 
-            const SizedBox(
-              height: 10,
-            ),
+            const SizedBox(height: 10),
 
-            // ==================================================
             // ANOMALÍA
-            // ==================================================
 
             TextField(
-              controller:
-                  fila.anomaliaController,
+              controller: fila.anomaliaController,
               maxLines: 3,
-              style:
-                  const TextStyle(
-                fontSize: 15,
-              ),
-              decoration:
-                  const InputDecoration(
-                labelText:
-                    'Anomalía',
-                labelStyle:
-                    TextStyle(
-                  fontSize: 14,
-                ),
-                hintText:
-                    'Escribe la anomalía encontrada...',
-                border:
-                    OutlineInputBorder(),
+              style: const TextStyle(fontSize: 15),
+              decoration: const InputDecoration(
+                labelText: 'Anomalía',
+                labelStyle: TextStyle(fontSize: 14),
+                hintText: 'Escribe la anomalía encontrada...',
+                border: OutlineInputBorder(),
               ),
             ),
 
-            const SizedBox(
-              height: 10,
-            ),
+            const SizedBox(height: 10),
 
-            // ==================================================
             // CORRECCIÓN
-            // ==================================================
 
             TextField(
-              controller:
-                  fila.fechaCorreccionController,
+              controller: fila.fechaCorreccionController,
               readOnly: true,
               onTap: () {
-                seleccionarCorreccion(
-                  fila,
-                );
+                seleccionarCorreccion(fila);
               },
-              style:
-                  const TextStyle(
+              style: const TextStyle(
                 fontSize: 15,
-                fontWeight:
-                    FontWeight.w500,
+                fontWeight: FontWeight.w500,
               ),
-              decoration:
-                  const InputDecoration(
-                labelText:
-                    'Estatus de corrección',
-                labelStyle:
-                    TextStyle(
-                  fontSize: 14,
-                ),
-                hintText:
-                    'Selecciona un estatus',
-                suffixIcon:
-                    Icon(
+              decoration: const InputDecoration(
+                labelText: 'Estatus de corrección',
+                labelStyle: TextStyle(fontSize: 14),
+                hintText: 'Selecciona un estatus',
+                suffixIcon: Icon(
                   Icons.fact_check,
-                  color:
-                      Color(
-                    0xFF007A4D,
-                  ),
+                  color: Color(0xFF007A4D),
                 ),
-                border:
-                    OutlineInputBorder(),
+                border: OutlineInputBorder(),
               ),
             ),
           ],

@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 
 import '../database/database_helper.dart';
@@ -70,6 +69,23 @@ class _InicioScreenState extends State<InicioScreen> {
   String? voltajeSeleccionado;
   _LineaTransmision? lineaSeleccionada;
   String? zonaSeleccionada;
+
+  // Nuevos campos de características de la torre.
+  String? tipoTorreSeleccionado;
+  String? tipoCimentacionSeleccionado;
+
+  final List<String> tiposTorre = const [
+    'Suspensión',
+    'Remate',
+    'Flexión',
+    'Transposición',
+  ];
+
+  final List<String> tiposCimentacion = const [
+    'Acero',
+    'Madera',
+    'Concreto',
+  ];
 
   final TextEditingController tipoInspeccionController =
       TextEditingController();
@@ -483,6 +499,16 @@ class _InicioScreenState extends State<InicioScreen> {
       return;
     }
 
+    if (tipoTorreSeleccionado == null) {
+      _mostrarMensaje('Seleccione el tipo de torre.', esError: true);
+      return;
+    }
+
+    if (tipoCimentacionSeleccionado == null) {
+      _mostrarMensaje('Seleccione el tipo de cimentación.', esError: true);
+      return;
+    }
+
     if (tipoInspeccionController.text.trim().isEmpty) {
       _mostrarMensaje(
         'Seleccione el tipo de inspección.',
@@ -615,6 +641,8 @@ class _InicioScreenState extends State<InicioScreen> {
       voltajeSeleccionado = null;
       lineaSeleccionada = null;
       zonaSeleccionada = null;
+      tipoTorreSeleccionado = null;
+      tipoCimentacionSeleccionado = null;
       fechaSeleccionada = DateTime.now();
 
       busquedaTorre = '';
@@ -1036,6 +1064,54 @@ class _InicioScreenState extends State<InicioScreen> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: tipoTorreSeleccionado,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Tipo de torre',
+                      prefixIcon: Icon(
+                        Icons.cell_tower,
+                        color: verdeCfe,
+                      ),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: tiposTorre
+                        .map(
+                          (tipo) => DropdownMenuItem<String>(
+                            value: tipo,
+                            child: Text(tipo),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (valor) {
+                      setState(() => tipoTorreSeleccionado = valor);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: tipoCimentacionSeleccionado,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Tipo de cimentación',
+                      prefixIcon: Icon(
+                        Icons.foundation,
+                        color: verdeCfe,
+                      ),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: tiposCimentacion
+                        .map(
+                          (tipo) => DropdownMenuItem<String>(
+                            value: tipo,
+                            child: Text(tipo),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (valor) {
+                      setState(() => tipoCimentacionSeleccionado = valor);
+                    },
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
