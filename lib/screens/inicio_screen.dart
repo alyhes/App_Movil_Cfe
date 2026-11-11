@@ -556,6 +556,8 @@ class _InicioScreenState extends State<InicioScreen> {
             '$voltajeSeleccionado - ${lineaSeleccionada!.nombreCompleto}',
         'zona_transmision': zonaSeleccionada!,
         'tipo_inspeccion': tipoInspeccionController.text.trim(),
+        'tipo_torre': tipoTorreSeleccionado!,
+        'tipo_cimentacion': tipoCimentacionSeleccionado!,
         'elaboro':
             '${elaboroNombreController.text.trim()} '
             '(RPE: ${elaboroRpeController.text.trim()})',
